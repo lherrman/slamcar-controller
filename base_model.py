@@ -1,142 +1,270 @@
-
 import sys
 import numpy as np
 import cv2
 import logging
-
+import os
+import math
+import pygame as pg
+from pygame.math import Vector2
+from pyfiglet import Figlet
 
 class CarModel:
-    def __init__(self, x=0, y=0, theta=0):
-        self.pos = np.array([x, y], dtype=np.float32) # m (x, y)
-        self.theta = theta # orientation (rad) (0 = east, pi/2 = north, pi = west, 3/2 pi = south)
+    def __init__(self, x, y, angle=0.0, length=0.4, width=0.2, max_steering=30, max_acceleration=30.0):
+        self.position = Vector2(x, y)
+        self.heading = Vector2(0, -1).normalize()
+        self.velocity = Vector2(0.0, 0.0)
+        self.velocity_magnitude = 0.0
+        self.max_velocity = 20.0
+        self.acceleration_speed = 2 # meters per second
 
-        self.tire_angle = 0       # rad (0 = straight, positive = left, negative = right)
-        self.tire_angle_max = np.pi/4 # rad 
+        self.length = length
+        self.width = width
 
-        self.velocity = 0    # m/s   (linear velocity)
-        self.angular_velocity = 0 # rad/s (angular velocity)
+        self.max_steering = max_steering
+        self.steering_speed = 10.0 # degrees per second
+        self.steering = 0.0 # degrees
+        self.steering_radius = 0.0 # meters
+        self.steering_rotation_point = Vector2(0, 0)
 
-        self.dt = 0.1     # s (time step)
+        self.ppu = 64 # pixels per unit (meters)
 
-        self.length = 0.3 # m (length of car from tire to tire)
-        self.width = 0.2  # m (width of car)
+    def update(self, dt):
+        self._update_position(dt)
+        self._update_inputs(dt)
 
-        self.rotation_point = np.array([0, 0], dtype=np.float32)
+    def _update_position(self, dt):
 
-    def move(self):
+        if np.abs(self.steering) < 0.01:
+            self.velocity = self.heading.normalize() * self.velocity_magnitude
+            self.position += self.velocity * dt  * 0.5 # TODO: remove this magic number (recalculate all the units)
+        else:
+            angular_velocity = self.velocity_magnitude / self.steering_radius / (math.pi) 
+            self.heading = self.heading.rotate(angular_velocity * dt)
+            self.position = self._rotate_vector_about_point(self.position, self.steering_rotation_point, angular_velocity * dt)
         
-        dpos = self.velocity * np.array([np.cos(self.theta), np.sin(self.theta)], dtype=np.float32)
-        dtheta = self.velocity * np.tan(self.tire_angle) / self.length
+    def _update_inputs(self, dt):
+        pressed = pg.key.get_pressed()
 
-        self.pos += dpos * self.dt 
-        self.theta += dtheta * self.dt
+        # Steering
+        if pressed[pg.K_a]:
+            self.steering = max(-self.max_steering, self.steering - self.steering_speed * dt)
+
+        if pressed[pg.K_d]:
+            self.steering = min(self.max_steering, self.steering + self.steering_speed * dt)
+
+        # If neither A or D is pressed, reduce steering to 0
+        back_steer_factor = 2
+        if not pressed[pg.K_a] and not pressed[pg.K_d]:
+            if self.steering > 0:
+                self.steering = max(0, self.steering - self.steering_speed * dt * back_steer_factor)
+            else:
+                self.steering = min(0, self.steering + self.steering_speed * dt * back_steer_factor)
+
+        self.steering_radius = self._calculate_steering_radius()
+
+        # Velocity
+        if pressed[pg.K_w]:
+            self.velocity_magnitude = min(self.max_velocity, self.velocity_magnitude + self.acceleration_speed * dt)
+
+        if pressed[pg.K_s]:
+            self.velocity_magnitude = max(-self.max_velocity, self.velocity_magnitude - self.acceleration_speed * dt)
+
+        # If neither W or S is pressed, reduce velocity to 0
+        if not pressed[pg.K_w] and not pressed[pg.K_s]:
+            if self.velocity_magnitude > 0:
+                self.velocity_magnitude = max(0, self.velocity_magnitude - self.acceleration_speed * dt)
+            else:
+                self.velocity_magnitude = min(0, self.velocity_magnitude + self.acceleration_speed * dt)
+        
+    def _calculate_steering_radius(self):
+        if self.steering == 0:
+            return 0
+        else:
+            return self.length / math.tan(math.radians(self.steering))
+        
+    def draw(self, screen, ppu):
+        self.ppu = ppu
+        # Draw car
+        #self.heading.rotate_ip(self.steering*0.02)
+
+        # get angle from heading
+        angle = -self.heading.angle_to(Vector2(1, 0))
+
+        self._draw_steering_radius(screen)
+        self._draw_tires(screen)
+        self._draw_car(screen)
+
+    def _draw_steering_radius(self, screen):
+        # Draw steering radius
+        angle = -self.heading.angle_to(Vector2(1, 0))
+        color_track = (0, 10, 10)
+        color_line = (0, 60, 60)
+        width = int(self.width * self.ppu)
+        if self.steering_radius > 0:
+            self.steering_rotation_point = Vector2(0, self.steering_radius)
+            self.steering_rotation_point = self.steering_rotation_point.rotate(angle)
+            self.steering_rotation_point = self.steering_rotation_point * self.ppu
+            self.steering_rotation_point = self.steering_rotation_point + self.position
+            pg.draw.circle(screen, color_track, self.steering_rotation_point, self.steering_radius * self.ppu + width //2, width)
+            pg.draw.circle(screen, color_line, self.steering_rotation_point, self.steering_radius * self.ppu, 1)
+        elif self.steering_radius < 0: 
+            self.steering_rotation_point = Vector2(0, self.steering_radius)
+            self.steering_rotation_point = self.steering_rotation_point.rotate(angle)
+            self.steering_rotation_point = self.steering_rotation_point * self.ppu
+            self.steering_rotation_point = self.steering_rotation_point + self.position
+            pg.draw.circle(screen, color_track, self.steering_rotation_point, -self.steering_radius * self.ppu + width // 2, width)
+            pg.draw.circle(screen, color_line, self.steering_rotation_point, -self.steering_radius * self.ppu, 1)
+
+        else:
+            pg.draw.line(screen, color_track, self.position - self.heading * self.ppu * 100, self.position + self.heading * self.ppu * 100, width)
+            pg.draw.line(screen, color_line, self.position - self.heading * self.ppu * 100, self.position + self.heading * self.ppu * 100, 1)
+
+    def _draw_car(self, screen):
+        # draw rectangle representing car
+        angle = -self.heading.angle_to(Vector2(1, 0))
+        car_corner_points = [
+            Vector2(-self.length / 2, self.width / 2),
+            Vector2(self.length / 2, self.width / 2),
+            Vector2(self.length / 2, -self.width / 2),
+            Vector2(-self.length / 2, -self.width / 2)
+        ]
+        car_corner_points = [p.rotate(angle) for p in car_corner_points]
+        car_corner_points = [p * self.ppu for p in car_corner_points]
+        car_corner_points = [p + self.position for p in car_corner_points]
+        pg.draw.polygon(screen, (255, 255, 255), car_corner_points, 0)
+
+        # indicate front of car
+        pg.draw.line(screen, (255, 255, 0), self.position, self.position + self.heading * self.ppu * 0.1, 1)
+
+    def _draw_tires(self, screen):
+        # Draw tires
+        angle = -self.heading.angle_to(Vector2(1, 0))
+        tire_width = self.width / 4
+        tire_length = self.length / 4
+
+        # Draw front tires
+        tire_corner_points = [
+            Vector2(-tire_length / 2, tire_width / 2),
+            Vector2(tire_length / 2, tire_width / 2),
+            Vector2(tire_length / 2, -tire_width / 2),
+            Vector2(-tire_length / 2, -tire_width / 2)
+        ]
+
+        tire_corner_points = [p.rotate(angle + self.steering) for p in tire_corner_points]
+        tire_corner_points = [p * self.ppu for p in tire_corner_points]
+
+        tires = [
+            Vector2(self.length / 3, self.width / 2),
+            Vector2(self.length / 3, -self.width / 2),
+        ]
+
+        tires = [p.rotate(angle) for p in tires]
+        tires = [p * self.ppu for p in tires]
+        tires = [p + self.position for p in tires]
+
+        for tire in tires:
+            points = [p + tire for p in tire_corner_points]
+            pg.draw.polygon(screen, (255, 255, 255), points, 2)
+
+        # Draw rear tires
+        tire_corner_points = [
+            Vector2(-tire_length / 2, tire_width / 2),
+            Vector2(tire_length / 2, tire_width / 2),
+            Vector2(tire_length / 2, -tire_width / 2),
+            Vector2(-tire_length / 2, -tire_width / 2)
+        ]
+        tire_corner_points = [p.rotate(angle) for p in tire_corner_points]
+        tire_corner_points = [p * self.ppu for p in tire_corner_points]
+
+        tires = [
+            Vector2(-self.length / 3, self.width / 2),
+            Vector2(-self.length / 3, -self.width / 2)
+        ]
+        tires = [p.rotate(angle) for p in tires]
+        tires = [p * self.ppu for p in tires]
+        tires = [p + self.position for p in tires]
+
+        for tire in tires:
+            points = [p + tire for p in tire_corner_points]
+            pg.draw.polygon(screen, (255, 255, 255), points, 2)
+
+    def _rotate_vector_about_point(self, vector, point, angle):
+        """Rotate a vector about a point by a given angle in degrees."""
+        vector = vector - point
+        vector = vector.rotate(angle)
+        vector = vector + point
+        return vector
+
+class SlamcarController:
+    def __init__(self):
+        pg.init()
+        pg.display.set_caption("Slamcar Controller")
+        self._print_boot_message()
+        self.canvas_width = 800# // 2
+        self.canvas_height = 520# // 2
+        self.screen = pg.display.set_mode((self.canvas_width, self.canvas_height))
+        self.clock = pg.time.Clock()
+        self.ticks = 60
+        self.exit = False
+        self.ppu = 110
+        current_path = os.path.dirname(__file__)
+        icon = pg.image.load(current_path + '/icon.png')
+        pg.display.set_icon(icon)
 
 
-    def set_velocity(self, v):
-        self.velocity = v
 
-    def set_tire_angle(self, tire_angle):
-        self.tire_angle = tire_angle
+    def run(self):
+        initial_position = (self.canvas_width // 2, self.canvas_height // 2)
+        car = CarModel(*initial_position)
 
-        if self.tire_angle > self.tire_angle_max:
-            self.tire_angle = self.tire_angle_max
-        elif self.tire_angle < -self.tire_angle_max:
-            self.tire_angle = -self.tire_angle_max
+        while not self.exit:
+            dt = self.clock.get_time() / 100
+            self.screen.fill((0, 0, 0))
 
-    def get_tire_angle(self):
-        return self.tire_angle
-    
-    def get_velocity(self):
-        return self.velocity
+            # Update
+            car.update(dt)
 
+            # Draw
+            self._draw_grid(self.screen)
+            car.draw(self.screen, self.ppu)
 
-class Visualization2D():
-    def __init__(self, car_model):
-        self.car_model = car_model
+            # Event handling
+            self._EventHandling()
 
-        self.img = np.zeros((500, 500, 3), np.uint8)
-
-        self.img_center = (250, 250)
-        self.img_scale = 100
-        self.car_size = (self.car_model.length * self.img_scale, self.car_model.width * self.img_scale)
-
-    def draw_car(self):
-        self.img *= 0
-
-        x = self.img_center[0] + self.car_model.pos[0] * self.img_scale
-        y = self.img_center[1] - self.car_model.pos[1] * self.img_scale
-
-        theta = self.car_model.theta
-
-        #draw rotated rectangle
-        pts = np.array([[x - self.car_size[0], y - self.car_size[1]], 
-                        [x + self.car_size[0], y - self.car_size[1]], 
-                        [x + self.car_size[0], y + self.car_size[1]], 
-                        [x - self.car_size[0], y + self.car_size[1]]], np.int32)
-        pts = pts.reshape((-1, 1, 2))
-        rot_mat = cv2.getRotationMatrix2D((x, y), theta * 180 / np.pi, 1)
-        pts = cv2.transform(pts, rot_mat)
-        cv2.fillPoly(self.img, [pts], (255, 255, 255))
+            self.clock.tick(self.ticks)
+            pg.display.flip()
 
 
-        # draw car front
-        cv2.line(self.img, (int(x), int(y)), (int(x + 20 * np.cos(theta)), int(y - 20 * np.sin(theta))), (0, 0, 0), 2)
+        pg.quit()
 
-        # draw rotation point
-        cv2.circle(self.img, (int(x + self.car_model.rotation_point[0] * self.img_scale), int(y - self.car_model.rotation_point[1] * self.img_scale)), 5, (0, 0, 255), -1)
+    def _print_boot_message(self):
+        # using figlet
+        f = Figlet(font='slant')
+        print(f.renderText('SlamCar'))
+        print("SlamCar Controller v0.1")
 
+    def _draw_grid(self, screen):
+        for x in range(0, self.canvas_width, self.ppu):
+            pg.draw.line(screen, (50, 50, 50), (x, 0), (x, self.canvas_height))
+        for y in range(0, self.canvas_height, self.ppu):
+            pg.draw.line(screen, (50, 50, 50), (0, y), (self.canvas_width, y))
 
+    def _EventHandling(self):
+        # Event handling
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                self.exit = True
+        # Keyboard handling
+        pressed = pg.key.get_pressed()
+        if pressed[pg.K_ESCAPE]:
 
-
-def simulate_input(k, car_model):
-    global steering, velocity
-
-    if k == ord('a'):
-        steering -= 0.1
-    elif k == ord('d'):
-        steering += 0.1
-    elif k == ord('w'):
-        velocity += 0.1
-    elif k == ord('s'):
-        velocity -= 0.1
-    steering *= 0.95
-    velocity *= 0.95
-
-    if steering > car_model.tire_angle_max:
-        steering = car_model.tire_angle_max
-    elif steering < -car_model.tire_angle_max:
-        steering = -car_model.tire_angle_max
-
-    if velocity > 1:
-        velocity = 1
-
-    #logging.info('steering: %f, velocity: %f', steering, velocity)
-
-    car_model.set_velocity(velocity)
-    car_model.set_tire_angle(steering)
-
+            self.exit = True
+        if pressed[pg.K_UP]:
+            self.ppu += 5
+        if pressed[pg.K_DOWN]:
+            self.ppu -= 5
 
 
 if __name__ == '__main__':
-    car_model = CarModel(0, 0, 0)
-
-    vis = Visualization2D(car_model)
-    
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
-    k = None
-
-    steering = 0.0
-    velocity = 0.0
-    while k != 27:
-
-        #simulate_input(k, car_model)
-        car_model.set_velocity(0.1)
-        car_model.set_tire_angle(0.3)
-
-        car_model.move()
-        vis.draw_car()
-
-
-        cv2.imshow('img', vis.img)
-        k = cv2.waitKey(10)
+    slam_controller = SlamcarController()
+    slam_controller.run()
