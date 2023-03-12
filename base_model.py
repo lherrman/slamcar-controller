@@ -4,9 +4,10 @@ import cv2
 import logging
 import os
 import math
+from pyfiglet import Figlet
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame as pg
 from pygame.math import Vector2
-from pyfiglet import Figlet
 
 class CarModel:
     def __init__(self, x, y, angle=0.0, length=0.4, width=0.2, max_steering=30, max_acceleration=30.0):
@@ -26,97 +27,114 @@ class CarModel:
         self.steering_radius = 0.0 # meters
         self.steering_rotation_point = Vector2(0, 0)
 
+        self.rotation_position = -0.5 # 1.0 = front, -1.0 = back
+
         self.ppu = 64 # pixels per unit (meters)
 
     def update(self, dt):
         self._update_position(dt)
         self._update_inputs(dt)
+        self._calculate_steering_rotation_point()
 
     def _update_position(self, dt):
-
+        # If steering is 0, move in a straight line
+        # Otherwise, move in a circle around steering_rotation_point
         if np.abs(self.steering) < 0.01:
             self.velocity = self.heading.normalize() * self.velocity_magnitude
             self.position += self.velocity * dt  * 0.5 # TODO: remove this magic number (recalculate all the units)
         else:
             angular_velocity = self.velocity_magnitude / self.steering_radius / (math.pi) 
             self.heading = self.heading.rotate(angular_velocity * dt)
-            self.position = self._rotate_vector_about_point(self.position, self.steering_rotation_point, angular_velocity * dt)
+            self.position = self._rotate_vector_about_point(self.position, 
+                                                            self.steering_rotation_point, 
+                                                            angular_velocity * dt)
         
     def _update_inputs(self, dt):
         pressed = pg.key.get_pressed()
 
         # Steering
-        if pressed[pg.K_a]:
-            self.steering = max(-self.max_steering, self.steering - self.steering_speed * dt)
-
-        if pressed[pg.K_d]:
-            self.steering = min(self.max_steering, self.steering + self.steering_speed * dt)
-
-        # If neither A or D is pressed, reduce steering to 0
-        back_steer_factor = 2
-        if not pressed[pg.K_a] and not pressed[pg.K_d]:
-            if self.steering > 0:
-                self.steering = max(0, self.steering - self.steering_speed * dt * back_steer_factor)
-            else:
-                self.steering = min(0, self.steering + self.steering_speed * dt * back_steer_factor)
-
+        self._update_steering(pressed[pg.K_a], pressed[pg.K_d], dt)
         self.steering_radius = self._calculate_steering_radius()
 
         # Velocity
-        if pressed[pg.K_w]:
-            self.velocity_magnitude = min(self.max_velocity, self.velocity_magnitude + self.acceleration_speed * dt)
+        self._update_velocity(pressed[pg.K_w], pressed[pg.K_s], dt)
 
-        if pressed[pg.K_s]:
-            self.velocity_magnitude = max(-self.max_velocity, self.velocity_magnitude - self.acceleration_speed * dt)
+        # Debug Keys
+        if pressed[pg.K_m]:
+            ...
+        if pressed[pg.K_n]:
+            ...
 
-        # If neither W or S is pressed, reduce velocity to 0
-        if not pressed[pg.K_w] and not pressed[pg.K_s]:
-            if self.velocity_magnitude > 0:
-                self.velocity_magnitude = max(0, self.velocity_magnitude - self.acceleration_speed * dt)
-            else:
-                self.velocity_magnitude = min(0, self.velocity_magnitude + self.acceleration_speed * dt)
-        
+
     def _calculate_steering_radius(self):
         if self.steering == 0:
             return 0
         else:
             return self.length / math.tan(math.radians(self.steering))
         
+    def _update_steering(self, left, right, dt):
+        if left:
+            self.steering = max(-self.max_steering, self.steering - self.steering_speed * dt)
+
+        if right:
+            self.steering = min(self.max_steering, self.steering + self.steering_speed * dt)
+
+        # If neither is pressed, reduce steering to 0
+        # back_steer_factor determines how fast the steering will go back to 0
+        back_steer_factor = 2
+        if not left and not right:
+            if self.steering > 0:
+                self.steering = max(0, self.steering - self.steering_speed * dt * back_steer_factor)
+            else:
+                self.steering = min(0, self.steering + self.steering_speed * dt * back_steer_factor)
+        
+    def _update_velocity(self, up, down, dt):
+        if up:
+            self.velocity_magnitude = min(self.max_velocity, self.velocity_magnitude + self.acceleration_speed * dt)
+
+        if down:
+            self.velocity_magnitude = max(-self.max_velocity, self.velocity_magnitude - self.acceleration_speed * dt)
+
+        # If neither W or S is pressed, reduce velocity to 0
+        if not up and not down:
+            if self.velocity_magnitude > 0:
+                self.velocity_magnitude = max(0, self.velocity_magnitude - self.acceleration_speed * dt)
+            else:
+                self.velocity_magnitude = min(0, self.velocity_magnitude + self.acceleration_speed * dt)
+        
+    def _calculate_steering_rotation_point(self):
+        angle = -self.heading.angle_to(Vector2(1, 0))
+        self.steering_rotation_point = Vector2(0, self.steering_radius)
+        self.steering_rotation_point = self.steering_rotation_point.rotate(angle)
+        self.steering_rotation_point += self.rotation_position * (self.heading.normalize()  * self.length / 2 )
+        self.steering_rotation_point *= self.ppu
+        self.steering_rotation_point += self.position
+        
+
     def draw(self, screen, ppu):
         self.ppu = ppu
-        # Draw car
-        #self.heading.rotate_ip(self.steering*0.02)
 
-        # get angle from heading
-        angle = -self.heading.angle_to(Vector2(1, 0))
-
-        self._draw_steering_radius(screen)
+        self._draw_steering_radius(screen, True)
         self._draw_tires(screen)
         self._draw_car(screen)
 
-    def _draw_steering_radius(self, screen):
+    def _draw_steering_radius(self, screen, draw_wide_track=False):
         # Draw steering radius
-        angle = -self.heading.angle_to(Vector2(1, 0))
         color_track = (0, 10, 10)
         color_line = (0, 60, 60)
         width = int(self.width * self.ppu)
+        
         if self.steering_radius > 0:
-            self.steering_rotation_point = Vector2(0, self.steering_radius)
-            self.steering_rotation_point = self.steering_rotation_point.rotate(angle)
-            self.steering_rotation_point = self.steering_rotation_point * self.ppu
-            self.steering_rotation_point = self.steering_rotation_point + self.position
-            pg.draw.circle(screen, color_track, self.steering_rotation_point, self.steering_radius * self.ppu + width //2, width)
+            if draw_wide_track:
+                pg.draw.circle(screen, color_track, self.steering_rotation_point, self.steering_radius * self.ppu + width //2, width)
             pg.draw.circle(screen, color_line, self.steering_rotation_point, self.steering_radius * self.ppu, 1)
         elif self.steering_radius < 0: 
-            self.steering_rotation_point = Vector2(0, self.steering_radius)
-            self.steering_rotation_point = self.steering_rotation_point.rotate(angle)
-            self.steering_rotation_point = self.steering_rotation_point * self.ppu
-            self.steering_rotation_point = self.steering_rotation_point + self.position
-            pg.draw.circle(screen, color_track, self.steering_rotation_point, -self.steering_radius * self.ppu + width // 2, width)
+            if draw_wide_track:
+                pg.draw.circle(screen, color_track, self.steering_rotation_point, -self.steering_radius * self.ppu + width // 2, width)
             pg.draw.circle(screen, color_line, self.steering_rotation_point, -self.steering_radius * self.ppu, 1)
-
         else:
-            pg.draw.line(screen, color_track, self.position - self.heading * self.ppu * 100, self.position + self.heading * self.ppu * 100, width)
+            if draw_wide_track:
+                pg.draw.line(screen, color_track, self.position - self.heading * self.ppu * 100, self.position + self.heading * self.ppu * 100, width)
             pg.draw.line(screen, color_line, self.position - self.heading * self.ppu * 100, self.position + self.heading * self.ppu * 100, 1)
 
     def _draw_car(self, screen):
