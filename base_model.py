@@ -15,7 +15,7 @@ class CarModel:
         self.heading = Vector2(0, -1).normalize()
         self.velocity = Vector2(0.0, 0.0)
         self.velocity_magnitude = 0.0
-        self.max_velocity = 20.0
+        self.max_velocity = 5.0
         self.acceleration_speed = 2 # meters per second
 
         self.length = length
@@ -29,7 +29,10 @@ class CarModel:
 
         self.rotation_position = -0.5 # 1.0 = front, -1.0 = back
 
-        self.ppu = 64 # pixels per unit (meters)
+        self.magic_number = 0.014 # temporary bug with velocity calculation
+
+        self.ppu = 64 # pixels per unit
+        self.draw_track = False
 
     def update(self, dt):
         self._update_position(dt)
@@ -41,9 +44,9 @@ class CarModel:
         # Otherwise, move in a circle around steering_rotation_point
         if np.abs(self.steering) < 0.01:
             self.velocity = self.heading.normalize() * self.velocity_magnitude
-            self.position += self.velocity * dt  * 0.5 # TODO: remove this magic number (recalculate all the units)
+            self.position += self.velocity * dt * self.magic_number 
         else:
-            angular_velocity = self.velocity_magnitude / self.steering_radius / (math.pi) 
+            angular_velocity = self.velocity_magnitude / self.steering_radius
             self.heading = self.heading.rotate(angular_velocity * dt)
             self.position = self._rotate_vector_about_point(self.position, 
                                                             self.steering_rotation_point, 
@@ -61,10 +64,10 @@ class CarModel:
 
         # Debug Keys
         if pressed[pg.K_m]:
-            ...
+            self.magic_number += 0.001
         if pressed[pg.K_n]:
-            ...
-
+            self.magic_number -= 0.001
+        
 
     def _calculate_steering_radius(self):
         if self.steering == 0:
@@ -91,11 +94,10 @@ class CarModel:
     def _update_velocity(self, up, down, dt):
         if up:
             self.velocity_magnitude = min(self.max_velocity, self.velocity_magnitude + self.acceleration_speed * dt)
-
         if down:
             self.velocity_magnitude = max(-self.max_velocity, self.velocity_magnitude - self.acceleration_speed * dt)
 
-        # If neither W or S is pressed, reduce velocity to 0
+        # If neither is pressed, reduce velocity to 0
         if not up and not down:
             if self.velocity_magnitude > 0:
                 self.velocity_magnitude = max(0, self.velocity_magnitude - self.acceleration_speed * dt)
@@ -107,14 +109,12 @@ class CarModel:
         self.steering_rotation_point = Vector2(0, self.steering_radius)
         self.steering_rotation_point = self.steering_rotation_point.rotate(angle)
         self.steering_rotation_point += self.rotation_position * (self.heading.normalize()  * self.length / 2 )
-        self.steering_rotation_point *= self.ppu
+        #self.steering_rotation_point *= self.ppu
         self.steering_rotation_point += self.position
-        
 
     def draw(self, screen, ppu):
         self.ppu = ppu
-
-        self._draw_steering_radius(screen, True)
+        if self.draw_track: self._draw_steering_radius(screen, True)
         self._draw_tires(screen)
         self._draw_car(screen)
 
@@ -126,16 +126,16 @@ class CarModel:
         
         if self.steering_radius > 0:
             if draw_wide_track:
-                pg.draw.circle(screen, color_track, self.steering_rotation_point, self.steering_radius * self.ppu + width //2, width)
-            pg.draw.circle(screen, color_line, self.steering_rotation_point, self.steering_radius * self.ppu, 1)
+                pg.draw.circle(screen, color_track, self.steering_rotation_point * self.ppu, self.steering_radius * self.ppu + width //2, width)
+            pg.draw.circle(screen, color_line, self.steering_rotation_point  * self.ppu, self.steering_radius * self.ppu, 1)
         elif self.steering_radius < 0: 
             if draw_wide_track:
-                pg.draw.circle(screen, color_track, self.steering_rotation_point, -self.steering_radius * self.ppu + width // 2, width)
-            pg.draw.circle(screen, color_line, self.steering_rotation_point, -self.steering_radius * self.ppu, 1)
+                pg.draw.circle(screen, color_track, self.steering_rotation_point  * self.ppu, -self.steering_radius * self.ppu + width // 2, width)
+            pg.draw.circle(screen, color_line, self.steering_rotation_point  * self.ppu, -self.steering_radius * self.ppu, 1)
         else:
             if draw_wide_track:
-                pg.draw.line(screen, color_track, self.position - self.heading * self.ppu * 100, self.position + self.heading * self.ppu * 100, width)
-            pg.draw.line(screen, color_line, self.position - self.heading * self.ppu * 100, self.position + self.heading * self.ppu * 100, 1)
+                pg.draw.line(screen, color_track, self.position * self.ppu - self.heading * self.ppu * 100, self.position * self.ppu + self.heading * self.ppu * 100, width)
+            pg.draw.line(screen, color_line, self.position * self.ppu - self.heading * self.ppu * 100, self.position * self.ppu + self.heading * self.ppu * 100, 1)
 
     def _draw_car(self, screen):
         # draw rectangle representing car
@@ -147,12 +147,12 @@ class CarModel:
             Vector2(-self.length / 2, -self.width / 2)
         ]
         car_corner_points = [p.rotate(angle) for p in car_corner_points]
-        car_corner_points = [p * self.ppu for p in car_corner_points]
         car_corner_points = [p + self.position for p in car_corner_points]
+        car_corner_points = [p * self.ppu for p in car_corner_points]
         pg.draw.polygon(screen, (255, 255, 255), car_corner_points, 0)
 
         # indicate front of car
-        pg.draw.line(screen, (255, 255, 0), self.position, self.position + self.heading * self.ppu * 0.1, 1)
+        #pg.draw.line(screen, (255, 255, 0), self.position *  self.ppu, (self.position + self.heading) * self.ppu * 0.1, 1)
 
     def _draw_tires(self, screen):
         # Draw tires
@@ -177,8 +177,8 @@ class CarModel:
         ]
 
         tires = [p.rotate(angle) for p in tires]
-        tires = [p * self.ppu for p in tires]
         tires = [p + self.position for p in tires]
+        tires = [p * self.ppu for p in tires]
 
         for tire in tires:
             points = [p + tire for p in tire_corner_points]
@@ -199,8 +199,8 @@ class CarModel:
             Vector2(-self.length / 3, -self.width / 2)
         ]
         tires = [p.rotate(angle) for p in tires]
-        tires = [p * self.ppu for p in tires]
         tires = [p + self.position for p in tires]
+        tires = [p * self.ppu for p in tires]
 
         for tire in tires:
             points = [p + tire for p in tire_corner_points]
@@ -224,27 +224,27 @@ class SlamcarController:
         self.clock = pg.time.Clock()
         self.ticks = 60
         self.exit = False
-        self.ppu = 110
+        self.ppu = 120
+        self.draw_grid = True
         current_path = os.path.dirname(__file__)
         icon = pg.image.load(current_path + '/icon.png')
         pg.display.set_icon(icon)
-
-
+        self.time_last_pressed = 0
 
     def run(self):
-        initial_position = (self.canvas_width // 2, self.canvas_height // 2)
-        car = CarModel(*initial_position)
+        initial_position = (3, 3)
+        self.car = CarModel(*initial_position)
 
         while not self.exit:
             dt = self.clock.get_time() / 100
             self.screen.fill((0, 0, 0))
 
             # Update
-            car.update(dt)
+            self.car.update(dt)
 
             # Draw
-            self._draw_grid(self.screen)
-            car.draw(self.screen, self.ppu)
+            if self.draw_grid: self._draw_grid(self.screen)
+            self.car.draw(self.screen, self.ppu)
 
             # Event handling
             self._EventHandling()
@@ -274,14 +274,30 @@ class SlamcarController:
                 self.exit = True
         # Keyboard handling
         pressed = pg.key.get_pressed()
+
+        # Exit
         if pressed[pg.K_ESCAPE]:
 
+        # Camera zoom
             self.exit = True
         if pressed[pg.K_UP]:
             self.ppu += 5
         if pressed[pg.K_DOWN]:
             self.ppu -= 5
+            if self.ppu < 1:
+                self.ppu = 1
+        import time
 
+        # debounce key presses
+        if time.time() - self.time_last_pressed > 0.2:
+
+            if pressed[pg.K_g]:
+                self.time_last_pressed = time.time()
+                self.draw_grid = not self.draw_grid
+
+            if pressed[pg.K_t]:
+                self.time_last_pressed = time.time()
+                self.car.draw_track = not self.car.draw_track
 
 if __name__ == '__main__':
     slam_controller = SlamcarController()
