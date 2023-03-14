@@ -7,7 +7,7 @@ from pyfiglet import Figlet
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame as pg
 
-from image_stream_server import ImageStreamServer
+from camera_stream_server import CameraStreamServer
 from base_model import CarModel
 from ui import UIButton, UIText
 import config as cfg
@@ -34,7 +34,7 @@ class SlamcarController:
         self.time_last_pressed = 0
 
         self.connected = False
-        self.image_receiver = ImageStreamServer(port=cfg.CAMERA_PORT)
+        self.image_receiver = CameraStreamServer(port=cfg.CAMERA_PORT)
 
         self.ui_elements = []
         self._setup_ui()
