@@ -59,15 +59,14 @@ class SlamcarController:
                 element.update(pg.event.poll())
                 element.draw(self.screen)
 
-            # Event handling
-            self._EventHandling()
-
             # Show image preview
             self._show_image_preview()
 
             self.clock.tick(self.ticks)
             pg.display.flip()
-
+        
+            # Event handling
+            self._EventHandling()
                 
         cv2.destroyAllWindows()
         self.image_receiver.close()
@@ -76,7 +75,7 @@ class SlamcarController:
     def _print_boot_message(self):
         f = Figlet(font='slant')
         print(f.renderText('SlamCar'))
-        print("SlamCar Controller v0.1")
+        print("SlamCar Controller")
 
     def _setup_ui(self):
         # Configuration button
@@ -162,15 +161,17 @@ class SlamcarController:
         # Event handling
         for event in pg.event.get():
             if event.type == pg.QUIT:
+                print("Quit")
                 self.exit = True
+            
         # Keyboard handling
         pressed = pg.key.get_pressed()
 
         # Exit
         if pressed[pg.K_ESCAPE]:
+            self.exit = True
 
         # Camera zoom
-            self.exit = True
         if pressed[pg.K_UP]:
             self.ppu += 5
         if pressed[pg.K_DOWN]:
