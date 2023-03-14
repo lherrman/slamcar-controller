@@ -7,7 +7,7 @@ import io
 import logging
 import config as cfg
 
-class ImageStreamServer:
+class CameraStreamServer:
     ''''
     This is a implementation of a ZMQ image stream receiver for the SlamCar project.
     '''
