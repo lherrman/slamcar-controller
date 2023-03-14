@@ -1,18 +1,15 @@
-import time
-import sys
 import numpy as np
-import cv2
-import logging
-import os
 import math
+import pygame as pg
+from pygame.math import Vector2
 
 
 class CarModel:
     def __init__(self, x, y, angle=0.0, length=0.4, width=0.2):
-        self.MAX_VELOCITY = 7.0
-        self.ACCELERATION_SPEED = 2 # meters per second
         self.LENGTH = length        # length of the car in meters
         self.WIDTH = width          # width of the car in meters
+        self.MAX_VELOCITY = 7.0     # meters per second
+        self.ACCELERATION_SPEED = 2 # meters per second
         self.STEERING_SPEED = 10.0  # degrees per second
         self.MAX_STEERING = 30.0    # degrees
 
@@ -25,7 +22,7 @@ class CarModel:
         self.steering_rotation_point = Vector2(0, 0) # point around which the car is rotating
         self.rotation_position = -0.5                # 1.0 = front, -1.0 = back
 
-        self.magic_number = 0.014 # temporary bug with velocity calculation
+        self.magic_number = 0.014 # temporary fix for bug with velocity calculation
 
         self.ppu = 64           # pixels per unit
         self.draw_track = False # draw the track the car is moving on
