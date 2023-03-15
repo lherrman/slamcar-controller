@@ -3,6 +3,7 @@ import math
 import pygame as pg
 from pygame.math import Vector2
 
+from config import Config as cfg
 
 class CarModel:
     def __init__(self, x, y, angle=0.0, length=0.4, width=0.2):
@@ -31,6 +32,14 @@ class CarModel:
         self._update_position(dt)
         self._update_inputs(dt)
         self._calculate_steering_rotation_point()
+
+
+    def update_parameters(self):
+        self.LENGTH = cfg.get("car_length")
+        self.WIDTH = cfg.get("car_width")
+        self.MAX_STEERING = cfg.get("max_steering")
+        self.ACCELERATION_SPEED = cfg.get("acceleration")
+        self.STEERING_SPEED = cfg.get("steering_speed")
 
     def _update_position(self, dt):
         # If steering is 0, move in a straight line

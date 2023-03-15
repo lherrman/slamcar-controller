@@ -1,0 +1,17 @@
+{
+  "max_steering": 30,
+  "steering_speed": 10,
+  "max_velocity": 9,
+  "acceleration": 3.5,
+  "deceleration": 3.0,
+  "car_length": 0.4,
+  "car_width": 0.2,
+  "camera_size": [
+    800,
+    600
+  ],
+  "camera_frequency": 10,
+  "camera_port": 5001,
+  "control_frequency": 10,
+  "control_port": 5002
+}
