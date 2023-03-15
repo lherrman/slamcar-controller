@@ -5,13 +5,13 @@ import numpy as np
 from PIL import Image
 import io
 import logging
-import config as cfg
+from config import Config as cfg
 
 class CameraStreamServer:
     ''''
     This is a implementation of a ZMQ image stream receiver for the SlamCar project.
     '''
-    def __init__(self, port=cfg.CAMERA_PORT):
+    def __init__(self, port=cfg.get('camera_port')):
         self.host = '0.0.0.0'
         self.port = port
         self.context = zmq.Context()
