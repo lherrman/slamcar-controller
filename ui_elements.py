@@ -168,6 +168,9 @@ class UITextInput(UIElement):
 
 import time
 class UIJsonValue(UIElement):
+    '''
+    A UI element that displays a value from a json file and allows to change it
+    '''
     def __init__(self, position, size, json_key:str, font_size: int= 16, 
                  text_color= (255,255,255), 
                  bg_color=(0,0,0), 
@@ -191,6 +194,7 @@ class UIJsonValue(UIElement):
         self.cursor_time_since_last_blink = time.time()
         self.cursor_blink_rate = 0.5
         self.cursor_visible = True
+        self.cursor_position = len(self.text_buffer)
 
     def update(self, event):
         split_percent = 0.7
@@ -202,7 +206,10 @@ class UIJsonValue(UIElement):
         size_key = (self.size[0] * split_percent, self.size[1])
         self.rect_key = pg.Rect(position_key, size_key)
  
-        value = self.text_buffer + "|" if self._selected and self.cursor_visible else self.text_buffer
+        if self._selected:
+            value = self.text_buffer[:self.cursor_position] + "|" + self.text_buffer[self.cursor_position:]
+        else:
+            value = self.text_buffer
         self.text_img_value = self._font.render(value, True, self._text_color, self._bg_color_active)
         position_value = (self.position[0] + self.size[0] * split_percent, self.position[1])
         size_value = (self.size[0] * (1 - split_percent), self.size[1])
@@ -237,15 +244,25 @@ class UIJsonValue(UIElement):
         # Handle text input
         if event.type == pg.KEYDOWN:
             if self._selected:
-                if event.key == pg.K_RETURN:
+                # Move cursor
+                if event.key == pg.K_LEFT:
+                    self.cursor_position = max(0, self.cursor_position - 1)
+                elif event.key == pg.K_RIGHT:
+                    self.cursor_position = min(len(self.text_buffer), self.cursor_position + 1)
+                # On enter, write to json file and post an event to notify the main loop
+                elif event.key == pg.K_RETURN:
                     self._selected = False
                     self.write_json(self._json_key, self.text_buffer)
                     self._bg_color_active = self._bg_color
                     pg.event.post(pg.event.Event(pg.USEREVENT, {"action": "config_changed"}))
+                # Delete text at cursor
                 elif event.key == pg.K_BACKSPACE:
-                    self.text_buffer = self.text_buffer[:-1]
+                    self.text_buffer = self.text_buffer[:max(0, self.cursor_position - 1)] + self.text_buffer[self.cursor_position:]
+                    self.cursor_position = max(0, self.cursor_position - 1)
+                # write text at cursor
                 else:
-                    self.text_buffer += event.unicode
+                    self.text_buffer = self.text_buffer[:self.cursor_position] + event.unicode + self.text_buffer[self.cursor_position:]
+                    self.cursor_position += 1
 
     def draw(self, screen):
         self.image1 = pg.Surface(self.rect_value.size)
