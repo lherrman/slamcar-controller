@@ -8,8 +8,9 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame as pg
 
 from camera_stream_server import CameraStreamServer
+from controll_stream_server import ControllStreamServer
 from base_model import CarModel
-from gui_elements import UIButton, UIText, ConfigWindow
+from ui_elements import UIButton, UIText, ConfigWindow
 from config import Config as cfg
 
 
@@ -29,12 +30,17 @@ class SlamcarController:
         self.ticks = 60
         self.exit = False
 
-        self.ppu = 120 # pixels per unit
-        self.draw_grid = True
+        self.ppu = 120 # pixels per unit 
         self.time_last_pressed = 0
 
         self.connected = False
-        self.image_receiver = CameraStreamServer(port=cfg.get('camera_port'))
+        self.image_server = CameraStreamServer(port=cfg.get('camera_port'))
+        self.controll_server = ControllStreamServer(port=cfg.get('controll_port'))
+
+        self.controlls = {
+            'throttle': 0.0,
+            'steering': 0.0
+        }
 
         self.ui_elements = []
         self._setup_ui()
@@ -46,7 +52,8 @@ class SlamcarController:
     def run(self):
         initial_position = (3, 3)
         self.car = CarModel(*initial_position)
-        self.image_receiver.start()
+        self.image_server.start()
+        self.controll_server.start()
 
         while not self.exit:            
             dt = self.clock.get_time() / 100
@@ -54,6 +61,8 @@ class SlamcarController:
 
             # Update
             self.car.update(dt)
+            self._update_controlls()
+
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     self.exit = True
@@ -68,7 +77,6 @@ class SlamcarController:
                     self._config_window.update(event)
 
             # Draw
-            if self.draw_grid: self._draw_grid(self.screen) # draw grid
             self.car.draw(self.screen, self.ppu)            # draw car
             self._draw_gui(self.screen)                     # draw gui
             for element in self.ui_elements:
@@ -86,7 +94,7 @@ class SlamcarController:
             self._EventHandling()
                 
         cv2.destroyAllWindows()
-        self.image_receiver.close()
+        self.image_server.close()
         pg.quit()
 
     def _print_boot_message(self):
@@ -106,12 +114,6 @@ class SlamcarController:
 
     def _toggle_configuration_window(self):
         self._show_config = not self._show_config
-
-    def _draw_grid(self, screen):
-        for x in range(0, self.canvas_width, self.ppu):
-            pg.draw.line(screen, (50, 50, 50), (x, 0), (x, self.canvas_height))
-        for y in range(0, self.canvas_height, self.ppu):
-            pg.draw.line(screen, (50, 50, 50), (0, y), (self.canvas_width, y))
 
     def _draw_gui(self, screen):
         self._draw_hbar(screen, pos='top', height=30, color=(0, 0, 0))
@@ -155,7 +157,7 @@ class SlamcarController:
         if not hasattr(self, '_image_preview_last_image'):
             self._image_preview_last_image = np.zeros((480, 640, 3), np.uint8)
             
-        image = self.image_receiver.receive_image()
+        image = self.image_server.receive_image()
         if image is not None:
             self.connected = True
             cv2.imshow(window_name, image)
@@ -202,14 +204,15 @@ class SlamcarController:
                 self.time_last_pressed = time.time()
                 self.car.draw_track = not self.car.draw_track
 
-    def get_basemodel_state(self):
-        state = {
-            'position': self.car.position,
-            'heading': self.car.heading,
-            'velocity': self.car.velocity,
-            'steering_angle': self.car.steering,
-        }
-        return state
+    def _update_controlls(self):
+        self.controlls['steering'] = self.car.steering / cfg.get('max_steering')
+        self.controlls['throttle'] = self.car.velocity_magnitude / cfg.get('max_velocity')
+
+        with self.controll_server.controll_lock:
+            self.controll_server.controlls['steering'] = self.controlls['steering']
+            self.controll_server.controlls['throttle'] = self.controlls['throttle']
+
+        return
     
 
 if __name__ == '__main__':
