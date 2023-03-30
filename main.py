@@ -22,8 +22,8 @@ class SlamcarController:
         current_path = os.path.dirname(__file__)
         icon = pg.image.load(current_path + '/resources/icon.png')
         pg.display.set_icon(icon)
-        self.canvas_width = 800
-        self.canvas_height = 520
+        self.canvas_width = 980
+        self.canvas_height = 620
         self.screen = pg.display.set_mode((self.canvas_width, self.canvas_height))
         self.font = pg.font.SysFont("Helvetica", 16)
         self.clock = pg.time.Clock()
@@ -45,8 +45,10 @@ class SlamcarController:
         self.ui_elements = []
         self._setup_ui()
 
-        config_window_width = 250
-        self._config_window = ConfigWindow((self.canvas_width-config_window_width,30), (config_window_width,self.canvas_height-30))
+        
+        self.config_window_width = 250
+        self._config_window_x_pos = self.canvas_width
+        self._config_window = ConfigWindow((self._config_window_x_pos,30), (self.config_window_width,self.canvas_height-30))
         self._show_config = False
 
     def run(self):
@@ -73,16 +75,23 @@ class SlamcarController:
                 for element in self.ui_elements:
                     element.update(event)
 
-                if self._show_config: 
-                    self._config_window.update(event)
+            self._config_window.update(event)
 
             # Draw
             self.car.draw(self.screen, self.ppu)            # draw car
             self._draw_gui(self.screen)                     # draw gui
             for element in self.ui_elements:
                 element.draw(self.screen)
+            
+            # Draw configuration window with animation
             if self._show_config: 
-                self._config_window.draw(self.screen)
+                config_window_target_x_pos = (self.canvas_width - self.config_window_width)
+            else:
+                config_window_target_x_pos = self.canvas_width
+
+            self._config_window_x_pos = 0.1 * config_window_target_x_pos + 0.9 * self._config_window_x_pos
+            self._config_window.move_to(self._config_window_x_pos, 30)
+            self._config_window.draw(self.screen)
 
             # Show image preview
             self._show_image_preview()
@@ -190,8 +199,8 @@ class SlamcarController:
             self.ppu += 5
         if pressed[pg.K_DOWN]:
             self.ppu -= 5
-            if self.ppu < 1:
-                self.ppu = 1
+            if self.ppu < 10:
+                self.ppu = 10
 
         # debounce key presses
         if time.time() - self.time_last_pressed > 0.2:

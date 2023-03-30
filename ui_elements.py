@@ -53,7 +53,12 @@ class UIContainer(UIElement):
     def _move(self, x, y):
         self.position = (self.position[0] + x, self.position[1] + y)
         for element in self.elements:
-            element.position = (element.position[0] + x, element.position[1] + y)
+            if hasattr(element, 'position'):
+                element.position = (element.position[0] + x, element.position[1] + y)
+            if hasattr(element, 'start'):
+                element.start = (element.start[0] + x, element.start[1] + y)
+            if hasattr(element, 'end'):
+                element.end = (element.end[0] + x, element.end[1] + y)
 
 
 class UILine(UIElement):
@@ -311,7 +316,7 @@ class ConfigWindow(UIContainer):
             self.add_element(tab)
 
         # Add line between tab buttons and config elements
-        line_y = 30 + len(groups_in_config) * self.elements_height
+        line_y = 8 +  len(groups_in_config) * (self.elements_height+self.spacing_between)
         line = UILine((0, line_y), (self.elements_width, line_y), color=(100,100,100))
         self.add_element(line)
 
