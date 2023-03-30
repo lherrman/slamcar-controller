@@ -136,16 +136,19 @@ class CarModel:
         canvas_width = screen.get_width()
         canvas_height = screen.get_height()
     
-        # TODO: grid area should be based on camera position
-        start_x = int(self.camera_position_smooth.x * self.ppu)
-        start_y = int(self.camera_position_smooth.y * self.ppu)
-        stop_x = int(start_x + canvas_width)
-        stop_y = int(start_y + canvas_height)
+        # TODO: with this method about 1/2 of the grid is drawn off screen
+        start_x = int(self.camera_position_smooth.x * self.ppu) - canvas_width
+        start_y = int(self.camera_position_smooth.y * self.ppu) - canvas_height
+        stop_x = int(self.camera_position_smooth.x * self.ppu) + canvas_width
+        stop_y = int(self.camera_position_smooth.y * self.ppu) + canvas_height
+        start_x = start_x - start_x % self.ppu
+        start_y = start_y - start_y % self.ppu
 
-        for x in range(-canvas_width, 2*canvas_width, self.ppu):
+        for x in range(start_x, stop_x, self.ppu):
             pg.draw.line(screen, (50, 50, 50), (x - self.camera_position_smooth.x * self.ppu, 0), (x - self.camera_position_smooth.x * self.ppu, canvas_height))
-        for y in range(-canvas_height, 2*canvas_height, self.ppu):
+        for y in range(start_y, stop_y, self.ppu):
             pg.draw.line(screen, (50, 50, 50), (0, y - self.camera_position_smooth.y * self.ppu), (canvas_width, y - self.camera_position_smooth.y * self.ppu))
+
 
 
     def _draw_steering_radius(self, screen, draw_wide_track=False):
