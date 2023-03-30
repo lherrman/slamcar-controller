@@ -11,7 +11,7 @@ class CameraStreamServer:
     ''''
     This is a implementation of a ZMQ image stream receiver for the SlamCar project.
     '''
-    def __init__(self, port=cfg.get('camera_port')):
+    def __init__(self, port=cfg.get('image_stream_port')):
         self.host = '0.0.0.0'
         self.port = port
         self.context = zmq.Context()

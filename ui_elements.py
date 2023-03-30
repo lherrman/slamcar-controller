@@ -1,5 +1,5 @@
 import pygame as pg
-
+from config import Config as cfg
 
 class UIElement():
     def __init__(self, position):
@@ -25,8 +25,16 @@ class UIContainer(UIElement):
             element.update(event)
 
     def add_element(self, element: UIElement):
-        element.position = (element.position[0] + self.position[0], element.position[1] + self.position[1])
+        if hasattr(element, 'position'):
+            element.position = (element.position[0] + self.position[0], element.position[1] + self.position[1])
+        if hasattr(element, 'start'):
+            element.start = (element.start[0] + self.position[0], element.start[1] + self.position[1])
+        if hasattr(element, 'end'):
+            element.end = (element.end[0] + self.position[0], element.end[1] + self.position[1])
         self.elements.append(element)
+
+    def clear_elements(self):
+        self.elements = []
 
     def draw(self, screen):
         # create a surface from the rect
@@ -48,8 +56,23 @@ class UIContainer(UIElement):
             element.position = (element.position[0] + x, element.position[1] + y)
 
 
+class UILine(UIElement):
+    def __init__(self, start, end, color=(255,255,255), width=1):
+        super().__init__(start)
+        self.start = start
+        self.end = end
+        self.color = color
+        self.width = width
+    
+    def draw(self, screen):
+        pg.draw.line(screen, self.color, self.start, self.end, self.width)
+
 class UIButton(UIElement):
-    def __init__(self, position, size, text, action=None, args=None, font_size= 16, text_color= (255,255,255), bg_color=(0,0,0), bg_color_hover=(50,50,50)):
+    def __init__(self, position, size, text, action=None, args=None,
+                 font_size= 16, text_color= (255,255,255),
+                 bg_color=(0,0,0), bg_color_hover=(50,50,50),
+                 selected=False,
+                 bg_color_selected=(40,40,40)):
         super().__init__(position)
         self._action = action
         self._set_args(args)
@@ -58,9 +81,11 @@ class UIButton(UIElement):
         self._font = pg.font.SysFont("Helvetica ", font_size)
         self._bg_color = bg_color
         self._bg_color_hover = bg_color_hover
+        self._bg_color_selected = bg_color_selected
         self._bg_color_active = self._bg_color
         self._text_color = text_color
         self.center_position = (position[0] + size[0] // 2, position[1] + size[1] // 2)
+        self.selected = selected
 
     def _set_args(self, args):
         if args is None:
@@ -80,6 +105,9 @@ class UIButton(UIElement):
             else:
                 self._bg_color_active = self._bg_color
 
+        if self.selected:
+            self._bg_color_active = self._bg_color_selected
+
         # Handle click events
         if event.type == pg.MOUSEBUTTONDOWN:
             if self.rect.collidepoint(event.pos):
@@ -92,7 +120,9 @@ class UIButton(UIElement):
         # fill the surface with the color
         self.image.fill(self._bg_color_active)
         # draw the text on the surface
-        self.image.blit(self.text_img, (self.rect.width // 2 - self.text_img.get_width() // 2, self.rect.height // 2 - self.text_img.get_height() // 2))
+        self.image.blit(self.text_img, 
+                        (self.rect.width // 2 - self.text_img.get_width() // 2, 
+                        self.rect.height // 2 - self.text_img.get_height() // 2))
         # draw the surface on the screen
         screen.blit(self.image, self.rect)
 
@@ -115,71 +145,24 @@ class UIText(UIElement):
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
-class UITextInput(UIElement):
-    def __init__(self, position, size, text, font_size= 16, text_color= (255,255,255), bg_color=(0,0,0), bg_color_hover=(50,50,50)):
-        super().__init__(position)
-        self._text = text
-        self.size = size
-        self._font = pg.font.SysFont("Helvetica ", font_size)
-        self._bg_color = bg_color
-        self._bg_color_hover = bg_color_hover
-        self._bg_color_active = self._bg_color
-        self._text_color = text_color
-        self.center_position = (position[0] + size[0] // 2, position[1] + size[1] // 2)
-        self._selected = False
 
-    def update(self, event):
-        self.text_img = self._font.render(self._text, True, self._text_color, self._bg_color_active)
-        self.rect = pg.Rect(self.position, self.size)
-        
-        # Handle hover events
-        if event.type == pg.MOUSEMOTION:
-            if self.rect.collidepoint(event.pos):
-                self._bg_color_active = self._bg_color_hover
-            else:
-                self._bg_color_active = self._bg_color
-
-        # Handle click events
-        if event.type == pg.MOUSEBUTTONDOWN:
-            if self.rect.collidepoint(event.pos):
-                self._selected = not self._selected
-            else:
-                self._selected = False
-
-        # Handle text input
-        if event.type == pg.KEYDOWN:
-            if self._selected:
-                if event.key == pg.K_RETURN:
-                    print(self._text)
-                elif event.key == pg.K_BACKSPACE:
-                    self._text = self._text[:-1]
-                else:
-                    self._text += event.unicode
-
-    def draw(self, screen):
-        # create a surface from the rect
-        self.image = pg.Surface(self.rect.size)
-        # fill the surface with the color
-        self.image.fill(self._bg_color_active)
-        # draw the text on the surface
-        self.image.blit(self.text_img, (self.rect.width // 2 - self.text_img.get_width() // 2, self.rect.height // 2 - self.text_img.get_height() // 2))
-        # draw the surface on the screen
-        screen.blit(self.image, self.rect)
 
 import time
-class UIJsonValue(UIElement):
+class UIConfigElement(UIElement):
     '''
     A UI element that displays a value from a json file and allows to change it
     '''
-    def __init__(self, position, size, json_key:str, font_size: int= 16, 
+    def __init__(self, position, size, 
+                 json_key:str, 
+                 font_size: int= 16, 
                  text_color= (255,255,255), 
                  bg_color=(0,0,0), 
                  bg_color_hover=(50,50,50),
                  bg_color_selected=(60,60,70)):
         
         super().__init__(position)
-        self._json_value = self.read_json(json_key)
         self._json_key = json_key
+        self._json_value = cfg.get(json_key)
         self.size = size
         self._font = pg.font.SysFont("Helvetica ", font_size)
         self._bg_color = bg_color
@@ -200,12 +183,12 @@ class UIJsonValue(UIElement):
         split_percent = 0.7
         # Left side of the UI element (variable name)
         varaiable_name = self._json_key.replace("_", " ")
-        #varaiable_name = " ".join([word.capitalize() for word in varaiable_name.split(" ")])
         self.text_img_key = self._font.render(varaiable_name, True, self._text_color, self._bg_color)
         position_key = (self.position[0], self.position[1])
         size_key = (self.size[0] * split_percent, self.size[1])
         self.rect_key = pg.Rect(position_key, size_key)
  
+        # Right side of the UI element (value)
         if self._selected:
             value = self.text_buffer[:self.cursor_position] + "|" + self.text_buffer[self.cursor_position:]
         else:
@@ -236,7 +219,7 @@ class UIJsonValue(UIElement):
                 if self._selected:
                     self.text_buffer = value
                 if not self._selected:
-                    self.write_json(self._json_key, self.text_buffer)
+                    cfg.set(self._json_key, self.text_buffer)
                     self._bg_color_active = self._bg_color
             else:
                 self._selected = False
@@ -249,126 +232,100 @@ class UIJsonValue(UIElement):
                     self.cursor_position = max(0, self.cursor_position - 1)
                 elif event.key == pg.K_RIGHT:
                     self.cursor_position = min(len(self.text_buffer), self.cursor_position + 1)
+
                 # On enter, write to json file and post an event to notify the main loop
                 elif event.key == pg.K_RETURN:
                     self._selected = False
-                    self.write_json(self._json_key, self.text_buffer)
+                    cfg.set(self._json_key, self.text_buffer)
                     self._bg_color_active = self._bg_color
                     pg.event.post(pg.event.Event(pg.USEREVENT, {"action": "config_changed"}))
+
                 # Delete text at cursor
                 elif event.key == pg.K_BACKSPACE:
                     self.text_buffer = self.text_buffer[:max(0, self.cursor_position - 1)] + self.text_buffer[self.cursor_position:]
                     self.cursor_position = max(0, self.cursor_position - 1)
+                
                 # write text at cursor
                 else:
                     self.text_buffer = self.text_buffer[:self.cursor_position] + event.unicode + self.text_buffer[self.cursor_position:]
                     self.cursor_position += 1
 
     def draw(self, screen):
+        # Draw Left side of the UI element (variable name)
         self.image1 = pg.Surface(self.rect_value.size)
         self.image1.fill(self._bg_color_active)
         self.image1.blit(self.text_img_value,
-                         (self.rect_value.width // 2 - self.text_img_value.get_width() // 2,
-                           self.rect_value.height // 2 - self.text_img_value.get_height() // 2))
+                        (self.rect_value.width // 2 - self.text_img_value.get_width() // 2,
+                        self.rect_value.height // 2 - self.text_img_value.get_height() // 2))
         screen.blit(self.image1, self.rect_value)
-
+        # Draw Right side of the UI element (variable value)
         self.image2 = pg.Surface(self.rect_key.size)
         self.image2.fill(self._bg_color)
         self.image2.blit(self.text_img_key, 
                         (self.rect_key.width // 2 - self.text_img_key.get_width() // 2,
-                          self.rect_key.height // 2 - self.text_img_key.get_height() // 2))
+                        self.rect_key.height // 2 - self.text_img_key.get_height() // 2))
         screen.blit(self.image2, self.rect_key)
 
-    def read_json(self, variable):
-        try:
-            with open("config.json", "r") as f:
-                config = json.load(f)
-                return config[variable]
-        except:
-            raise ValueError(f"{variable} not found in config.json")
         
-    def write_json(self, variable, value):
-        value = value.strip()
-        try:
-            if value.endswith("."):
-                value = str(value)
-            elif '.' in value:
-                value = float(value)
-            else:
-                value = int(value)
-        except:
-            return None
-        
-        try:
-            with open("config.json", "r") as f:
-                config = json.load(f)
-                config[variable] = value
-            with open("config.json", "w") as f:
-                json.dump(config, f, indent=2)
-        except:
-            return None
-        
-    def increase_config(self, variable, value):
-        try:
-            with open("config.json", "r") as f:
-                config = json.load(f)
-                config[variable] += value
-                print(config[variable])
-            with open("config.json", "w") as f:
-                json.dump(config, f, indent=2)
-        except:
-            return None
-
-
-import json
 class ConfigWindow(UIContainer):
     def __init__(self, position, size=(300,600), bg_color=(0,0,0)):
         super().__init__(position, size, bg_color)
 
-        spacing_top = 20
-        spacing_sides = 10
-        spacing_between = 10
-        elements_height = 25
-        elements_width = self.size[0] - 2 * spacing_sides
+        self.spacing_top_tab_name = 10
+        groups_in_config = cfg.get_groups()
 
-        keys_in_config = [key for key in json.load(open("config.json", "r"))]
+        self.spacing_sides = 10
+        self.spacing_between = 10
+        self.elements_height = 25
+        self.elements_width = self.size[0] - 2 * self.spacing_sides
+        self.spacing_top = 40 + len(groups_in_config) * self.elements_height
 
-        elements = [UIJsonValue((0, 0), (0, 0), key) for key in keys_in_config]
+        self.active_tab = groups_in_config[0]
+        self.active_tab_old = self.active_tab
+        self.create_tab()
 
-        spacing_between = 5
+
+    def create_tab(self):
+        # Create config for active tab
+        groups_in_config = cfg.get_groups()
+        keys_in_config = cfg.get_keys(self.active_tab)
+        elements = [UIConfigElement((0, 0), (0, 0), key) for key in keys_in_config]
+        self.spacing_between = 5
         for i, element in enumerate(elements):
-            element.position = (spacing_sides,spacing_top +  i * (elements_height + spacing_between))
-            element.size = (elements_width, elements_height)
+            element.position = (self.spacing_sides,self.spacing_top +  i * (self.elements_height + self.spacing_between))
+            element.size = (self.elements_width, self.elements_height)
             self.add_element(element)
 
-    def read_json(self, variable):
-        try:
-            with open("config.json", "r") as f:
-                config = json.load(f)
-                return config[variable]
-        except:
-            return None
-        
-    def write_json(self, variable, value):
-        try:
-            with open("config.json", "r") as f:
-                config = json.load(f)
-                config[variable] = value
-            with open("config.json", "w") as f:
-                json.dump(config, f, indent=2)
-        except:
-            return None
-        
-    def increase_config(self, variable, value):
-        try:
-            with open("config.json", "r") as f:
-                config = json.load(f)
-                config[variable] += value
-                print(config[variable])
-            with open("config.json", "w") as f:
-                json.dump(config, f, indent=2)
-        except:
-            return None
+        # Create tab buttons
+        index_active_tab = groups_in_config.index(self.active_tab)
+        tab_names = [UIButton((0, 0), (0, 0), group.replace("_", " "), 
+                              action=self.handle_tab_change, 
+                              args=group,
+                              font_size=18
+                              ) for group in groups_in_config]
+        for i, tab in enumerate(tab_names):
+            tab.position = (self.spacing_sides, self.spacing_top_tab_name + i * (self.elements_height + self.spacing_between))
+            tab.size = (self.elements_width, self.elements_height)
+            if i == index_active_tab:
+                tab.selected = True
+            self.add_element(tab)
+
+        # Add line between tab buttons and config elements
+        line_y = 30 + len(groups_in_config) * self.elements_height
+        line = UILine((0, line_y), (self.elements_width, line_y), color=(100,100,100))
+        self.add_element(line)
+
+    def handle_tab_change(self, tab_name):
+        self.active_tab = tab_name
+        self.clear_elements()
+        self.create_tab()
+        self.update(pg.event.Event(pg.USEREVENT))
+
+
+    def update(self, event):
+        super().update(event)
+    
+    
 
 
 if __name__ == "__main__":

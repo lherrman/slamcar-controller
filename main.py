@@ -34,7 +34,7 @@ class SlamcarController:
         self.time_last_pressed = 0
 
         self.connected = False
-        self.image_server = CameraStreamServer(port=cfg.get('camera_port'))
+        self.image_server = CameraStreamServer(port=cfg.get('image_stream_port'))
         self.controll_server = ControllStreamServer(port=cfg.get('controll_port'))
 
         self.controlls = {

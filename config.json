@@ -1,17 +1,32 @@
 {
-  "max_steering": 30,
-  "steering_speed": 20,
-  "max_velocity": 9,
-  "acceleration": 3.5,
-  "deceleration": 4.0,
-  "car_length": 0.4,
-  "car_width": 0.2,
-  "camera_size": [
-    800,
-    600
-  ],
-  "camera_frequency": 10,
-  "camera_port": 5001,
-  "controll_frequency": 20,
-  "controll_port": 5002
+  "base_model": {
+    "max_steering": 30,
+    "steering_speed": 20,
+    "max_velocity": 9,
+    "acceleration": 3.5,
+    "deceleration": 4.0,
+    "car_length": 0.4,
+    "car_width": 0.2
+  },
+  "camera_stream": {
+    "image_size": [
+      800,
+      600
+    ],
+    "image_stream_frequency": 20,
+    "image_stream_port": 5001
+  },
+  "controll_stream": {
+    "controll_frequency": 25,
+    "controll_port": 5002
+  },
+  "car_parameters": {
+    "max_steering": 30,
+    "steering_speed": 20,
+    "pwm_throttle_forward": 490,
+    "pwm_throttle_standing": 440,
+    "pwm_throttle_backward": 370,
+    "pwm_steering_left": 210,
+    "pwm_steering_right": 410
+  }
 }
