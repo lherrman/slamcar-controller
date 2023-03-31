@@ -59,7 +59,7 @@ class SlamcarController:
 
         while not self.exit:            
             dt = self.clock.get_time() / 100
-            self.screen.fill((0, 0, 0))
+            self.screen.fill((30, 30, 30))
 
             # Update
             self.car.update(dt)
@@ -70,28 +70,27 @@ class SlamcarController:
                     self.exit = True
                 if event.type == pg.USEREVENT:
                     if event.action == 'config_changed':
-                        self.car.update_parameters()
+                        self.car.load_parameters()
+                # react on scroll wheel
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    if event.button == 4:
+                        self.ppu += 10
+                    elif event.button == 5:
+                        self.ppu -= 10
 
                 for element in self.ui_elements:
                     element.update(event)
 
-            self._config_window.update(event)
-
+                self._config_window.update(event)
+            
             # Draw
             self.car.draw(self.screen, self.ppu)            # draw car
             self._draw_gui(self.screen)                     # draw gui
             for element in self.ui_elements:
                 element.draw(self.screen)
             
-            # Draw configuration window with animation
-            if self._show_config: 
-                config_window_target_x_pos = (self.canvas_width - self.config_window_width)
-            else:
-                config_window_target_x_pos = self.canvas_width
-
-            self._config_window_x_pos = 0.1 * config_window_target_x_pos + 0.9 * self._config_window_x_pos
-            self._config_window.move_to(self._config_window_x_pos, 30)
-            self._config_window.draw(self.screen)
+            # Draw configuration window with slide in animation
+            self._draw_configuration(self.screen)
 
             # Show image preview
             self._show_image_preview()
@@ -125,7 +124,7 @@ class SlamcarController:
         self._show_config = not self._show_config
 
     def _draw_gui(self, screen):
-        self._draw_hbar(screen, pos='top', height=30, color=(0, 0, 0))
+        self._draw_hbar(screen, pos='top', height=30, color=(37, 37, 37))
 
         self._draw_connection_status_text(screen)
         self._draw_configuration(screen)
@@ -158,7 +157,15 @@ class SlamcarController:
             
 
     def _draw_configuration(self, screen):
-        ...
+        if self._show_config: 
+            config_window_target_x_pos = (self.canvas_width - self.config_window_width)
+        else:
+            config_window_target_x_pos = self.canvas_width
+        if abs(config_window_target_x_pos - self._config_window_x_pos) > 1:
+            self._config_window.update(pg.event.Event(pg.USEREVENT, action='None'))
+        self._config_window_x_pos = 0.1 * config_window_target_x_pos + 0.9 * self._config_window_x_pos
+        self._config_window.move_to(self._config_window_x_pos, 30)
+        self._config_window.draw(self.screen)
 
     def _show_image_preview(self):
         '''Show camera preview in a separate window'''
@@ -211,7 +218,7 @@ class SlamcarController:
 
             if pressed[pg.K_t]:
                 self.time_last_pressed = time.time()
-                self.car.draw_track = not self.car.draw_track
+                self.car.draw_track_projection = not self.car.draw_track_projection
 
     def _update_controlls(self):
         self.controlls['steering'] = self.car.steering / cfg.get('max_steering')
