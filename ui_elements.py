@@ -2,9 +2,21 @@ import pygame as pg
 from config import Config as cfg
 
 class UIElement():
-    def __init__(self, position):
+    def __init__(self, position,
+                text_color= (255,255,255), 
+                 bg_color=(37, 37, 38), 
+                 bg_color_hover=(42, 45, 46),
+                 bg_color_selected=(55, 55, 61)):
+        
         self.position = position
-        self.mouse_over = False
+        self.mouse_over = False # Mouse is over the element
+        self.selected = False   # Element is selected (clicked)
+
+        self._text_color = text_color          # The text color of the element
+        self._bg_color = bg_color              # The background color of the element
+        self._bg_color_hover = bg_color_hover  # The background color when the mouse is over the element
+        self._bg_color_selected = bg_color_selected # The background color when the element is selected
+        self._bg_color_active = self._bg_color # The current background color
 
     def update(self, event):
         ...
@@ -13,10 +25,9 @@ class UIElement():
         ...
 
 class UIContainer(UIElement):
-    def __init__(self, position, size, bg_color=(20,20,20)):
+    def __init__(self, position, size):
         super().__init__(position)
         self.size = size
-        self.bg_color = bg_color
         self.elements = []
 
     def update(self, event):
@@ -40,7 +51,7 @@ class UIContainer(UIElement):
         # create a surface from the rect
         self.image = pg.Surface(self.rect.size)
         # fill the surface with the color
-        self.image.fill(self.bg_color)
+        self.image.fill(self._bg_color)
         # draw the surface on the screen
         screen.blit(self.image, self.rect)
 
@@ -74,21 +85,14 @@ class UILine(UIElement):
 
 class UIButton(UIElement):
     def __init__(self, position, size, text, action=None, args=None,
-                 font_size= 16, text_color= (255,255,255),
-                 bg_color=(0,0,0), bg_color_hover=(50,50,50),
-                 selected=False,
-                 bg_color_selected=(40,40,40)):
+                 font_size= 16,
+                 selected=False):
         super().__init__(position)
         self._action = action
         self._set_args(args)
         self._text = text
         self.size = size
         self._font = pg.font.SysFont("Helvetica ", font_size)
-        self._bg_color = bg_color
-        self._bg_color_hover = bg_color_hover
-        self._bg_color_selected = bg_color_selected
-        self._bg_color_active = self._bg_color
-        self._text_color = text_color
         self.center_position = (position[0] + size[0] // 2, position[1] + size[1] // 2)
         self.selected = selected
 
@@ -100,7 +104,6 @@ class UIButton(UIElement):
         self._args = args
 
     def update(self, event):
-        self.text_img = self._font.render(self._text, True, self._text_color, self._bg_color_active)
         self.rect = pg.Rect(self.position, self.size)
         
         # Handle hover events
@@ -113,6 +116,8 @@ class UIButton(UIElement):
         if self.selected:
             self._bg_color_active = self._bg_color_selected
 
+        self.text_img = self._font.render(self._text, True, self._text_color, self._bg_color_active)
+        
         # Handle click events
         if event.type == pg.MOUSEBUTTONDOWN:
             if self.rect.collidepoint(event.pos):
@@ -159,22 +164,14 @@ class UIConfigElement(UIElement):
     '''
     def __init__(self, position, size, 
                  json_key:str, 
-                 font_size: int= 16, 
-                 text_color= (255,255,255), 
-                 bg_color=(0,0,0), 
-                 bg_color_hover=(50,50,50),
-                 bg_color_selected=(60,60,70)):
+                 font_size: int= 16):
         
         super().__init__(position)
         self._json_key = json_key
         self._json_value = cfg.get(json_key)
         self.size = size
         self._font = pg.font.SysFont("Helvetica ", font_size)
-        self._bg_color = bg_color
-        self._bg_color_hover = bg_color_hover
-        self._bg_color_selected = bg_color_selected
         self._bg_color_active = self._bg_color 
-        self._text_color = text_color
         self.center_position = (position[0] + size[0] // 2, position[1] + size[1] // 2)
         self._selected = False
         self._hovered = False
@@ -273,8 +270,8 @@ class UIConfigElement(UIElement):
 
         
 class ConfigWindow(UIContainer):
-    def __init__(self, position, size=(300,600), bg_color=(0,0,0)):
-        super().__init__(position, size, bg_color)
+    def __init__(self, position, size=(300,600)):
+        super().__init__(position, size)
 
         self.spacing_top_tab_name = 10
         groups_in_config = cfg.get_groups()
