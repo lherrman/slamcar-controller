@@ -42,6 +42,7 @@ class CarModel:
     def update(self, dt):
         self._update_position(dt)
         self._update_trace()
+        self._update_trace()
         self._update_inputs(dt)
         self._calculate_steering_rotation_point()
 
