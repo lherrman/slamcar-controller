@@ -9,6 +9,7 @@ import pygame as pg
 
 from camera_stream_server import CameraStreamServer
 from controll_stream_server import ControllStreamServer
+from pyslam_con import PySlamCon
 from base_model import CarModel
 from ui_elements import UIButton, UIText, ConfigWindow
 from config import Config as cfg
@@ -45,11 +46,12 @@ class SlamcarController:
         self.ui_elements = []
         self._setup_ui()
 
-        
         self.config_window_width = 250
         self._config_window_x_pos = self.canvas_width
         self._config_window = ConfigWindow((self._config_window_x_pos,30), (self.config_window_width,self.canvas_height-30))
         self._show_config = False
+
+        self.pyslam = PySlamCon(r'\\wsl.localhost\Ubuntu\home\user\slamcar\pyslam\videos\images')
 
     def run(self):
         initial_position = (3, 3)
@@ -71,6 +73,7 @@ class SlamcarController:
                 if event.type == pg.USEREVENT:
                     if event.action == 'config_changed':
                         self.car.load_parameters()
+                    if event.action == 'remote_config_changed':
                         self.controll_server.send_config(cfg.get('car_parameters'))
                 # react on scroll wheel
                 if event.type == pg.MOUSEBUTTONDOWN:
@@ -107,6 +110,10 @@ class SlamcarController:
         self.image_server.close()
         pg.quit()
 
+
+    def _send_image_to_slam(self, image):
+        self.pyslam.put_image(image)
+
     def _print_boot_message(self):
         f = Figlet(font='slant')
         print(f.renderText('SlamCar'))
@@ -121,6 +128,7 @@ class SlamcarController:
         local_ip = self._get_local_ip()
         self.ui_elements.append(UIText((10, self.canvas_height-20),
                                     f"{local_ip}", font_size=14))
+        
 
     def _toggle_configuration_window(self):
         self._show_config = not self._show_config
@@ -174,12 +182,23 @@ class SlamcarController:
         window_name = 'SlamCar Camera'
         if not hasattr(self, '_image_preview_last_image'):
             self._image_preview_last_image = np.zeros((480, 640, 3), np.uint8)
-            
+
+        if not hasattr(self, 'i_counter'):
+            self.i_counter = 0
+
         image = self.image_server.receive_image()
         if image is not None:
             self.connected = True
             cv2.imshow(window_name, image)
             self._image_preview_last_image = image
+
+            # SEND IMAGE TO SLAM
+            # TODO move this to a separate thread and other function
+            self.i_counter += 1
+            if self.i_counter % 20 == 0:
+                self._send_image_to_slam(image)
+
+
         if self.connected:
             cv2.imshow(window_name, self._image_preview_last_image)
 
