@@ -32,16 +32,19 @@ class CarModel:
         self.ppu = 64           # pixels per unit
         self.draw_track_projection = False # draw the track the car is moving on
 
-        self._trace = [] # list of points that the car has passed
-        self.draw_track = True # draw the track the car has passed
+        self.trace = [] # list of points that the car has passed
+        self.draw_trace = True # draw the track the car has passed
 
         self.trace_tires = [[],[]] # list of points that the tires have passed
+        self.draw_tire_trace = False # draw the track the tires have passed
+
 
     def update(self, dt):
         self._update_position(dt)
         self._update_trace()
         self._update_inputs(dt)
         self._calculate_steering_rotation_point()
+
 
     def load_parameters(self):
         self.length = cfg.get("car_length")
@@ -119,7 +122,7 @@ class CarModel:
             self.temp_trace_counter = 1
         self.temp_trace_counter += 1
 
-        self._trace.append(self.position)
+        self.trace.append(self.position)
 
         # Only update the trace from tires when moving fast enough
         # and every x frames
@@ -294,12 +297,21 @@ class CarModel:
             pg.draw.polygon(screen, (255, 255, 255), points, 2)
 
     def _draw_trace(self, screen):
-        for points in self.trace_tires:
-            if len(points) < 2:
-                continue
-            points = [p - self.camera_position_smooth for p in points]
+        if self.draw_trace:
+            if len(self.trace) < 2:
+                return
+            points = [p - self.camera_position_smooth for p in self.trace]
             points = [p * self.ppu for p in points]
-            pg.draw.lines(screen, (50,50,50), False, points, 5)
+            pg.draw.lines(screen, (100,100,100), False, points, 1)
+            
+
+        if self.draw_tire_trace:
+            for points in self.trace_tires:
+                if len(points) < 2:
+                    continue
+                points = [p - self.camera_position_smooth for p in points]
+                points = [p * self.ppu for p in points]
+                pg.draw.lines(screen, (50,50,50), False, points, 5)
 
     def _rotate_vector_about_point(self, vector, point, angle):
         """Rotate a vector about a point by a given angle in degrees."""

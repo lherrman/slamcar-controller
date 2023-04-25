@@ -71,6 +71,7 @@ class SlamcarController:
                 if event.type == pg.USEREVENT:
                     if event.action == 'config_changed':
                         self.car.load_parameters()
+                        self.controll_server.send_config(cfg.get('car_parameters'))
                 # react on scroll wheel
                 if event.type == pg.MOUSEBUTTONDOWN:
                     if event.button == 4:
@@ -100,6 +101,7 @@ class SlamcarController:
         
             # Event handling
             self._EventHandling()
+
                 
         cv2.destroyAllWindows()
         self.image_server.close()

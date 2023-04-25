@@ -4,6 +4,9 @@ class Config:
     @staticmethod
     def get(key):
         config = json.load(open('config.json', 'r'))
+        if key in config:
+            return config[key]
+
         for _, conf  in config.items():
             if key in conf:
                 return conf[key]

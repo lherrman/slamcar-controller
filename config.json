@@ -8,25 +8,25 @@
     "car_length": 0.3,
     "car_width": 0.2
   },
-  "camera_stream": {
+  "communication": {
     "image_size": [
       800,
       600
     ],
     "image_stream_frequency": 20,
-    "image_stream_port": 5001
-  },
-  "controll_stream": {
+    "image_stream_port": 5001,
     "controll_frequency": 25,
     "controll_port": 5002
   },
   "car_parameters": {
-    "max_steering": 30,
-    "steering_speed": 20,
-    "pwm_throttle_forward": 490,
-    "pwm_throttle_standing": 440,
-    "pwm_throttle_backward": 370,
-    "pwm_steering_left": 210,
-    "pwm_steering_right": 410
+    "throttle_forward_pwm": 415,
+    "throttle_stopped_pwm": 400,
+    "throttle_backward_pwm": 370,
+    "pwm_throttle_scale": 1.0,
+    "steering_left_pwm": 550,
+    "steering_right_pwm": 230,
+    "steering_offset_pwm": 10,
+    "pwm_steering_scale": 1.0,
+    "console_logging": true
   }
 }

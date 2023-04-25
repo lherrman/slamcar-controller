@@ -18,15 +18,18 @@ class ControllStreamServer:
         self.socket.bind(f"tcp://{self.host}:{self.port}")
         self._thread = threading.Thread(target=self._communication_loop, daemon=True)
 
-        self.controlls = {
+        self.controlls = { # the controlls for the car
             'throttle': 10,
             'steering': 0
         }
 
-        self.state = {
+        self.state = { # the feedback from the car
             'throttle': 0,
             'steering': 0,
         }
+
+        self.config_queue = Queue() # the config queue
+        
         self.controll_lock = threading.Lock()
         self.state_lock = threading.Lock()
 
@@ -43,15 +46,29 @@ class ControllStreamServer:
     def _communication_loop(self):
         while True:
             message = self.socket.recv_json()
-            try:
-                with self.state_lock:
-                    self.state = message
 
-                with self.controll_lock:
-                    self.socket.send_json(self.controlls)
-            except:
-                print("error")
+            with self.state_lock:
+                self.state = message
 
+
+            with self.controll_lock:
+                if not self.config_queue.empty():
+                    config = self.config_queue.get()
+                    package = {
+                        "controlls": self.controlls,
+                        "config": config
+                    }
+                    self.socket.send_json(package)
+                else:
+                    package = {
+                        "controlls": self.controlls,
+                        "config": False
+                    }
+                    self.socket.send_json(package)
+
+
+    def send_config(self, config):
+        self.config_queue.put(config)
 
 
 if __name__ == '__main__':
