@@ -1,8 +1,8 @@
 {
   "base_model": {
-    "max_steering": 30,
+    "max_steering": 22,
     "steering_speed": 20,
-    "max_velocity": 8,
+    "max_velocity": 3,
     "acceleration": 3.5,
     "deceleration": 4.0,
     "car_length": 0.3,
