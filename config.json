@@ -2,10 +2,10 @@
   "base_model": {
     "max_steering": 30,
     "steering_speed": 20,
-    "max_velocity": 9,
+    "max_velocity": 8,
     "acceleration": 3.5,
     "deceleration": 4.0,
-    "car_length": 0.4,
+    "car_length": 0.3,
     "car_width": 0.2
   },
   "camera_stream": {

@@ -6,13 +6,14 @@ from pygame.math import Vector2
 from config import Config as cfg
 
 class CarModel:
-    def __init__(self, x, y, angle=0.0, length=0.4, width=0.2):
-        self.length = length        # length of the car in meters
-        self.width = width          # width of the car in meters
-        self.max_velocity = 7.0     # meters per second
-        self.acceleration_speed = 2 # meters per second
-        self.steering_speed = 10.0  # degrees per second
-        self.max_steering = 30.0    # degrees
+    def __init__(self, x, y):
+        self.length = 0             # length of the car in meters
+        self.width = 0              # width of the car in meters
+        self.max_velocity = 0       # meters per second
+        self.acceleration_speed = 0 # meters per second
+        self.steering_speed =   0   # degrees per second
+        self.max_steering = 0       # degrees
+        self.load_parameters()
 
         self.position = Vector2(x, y)                # position in meters
         self.heading = Vector2(0, -1).normalize()    # heading towards the front of the car
@@ -21,7 +22,7 @@ class CarModel:
         self.steering = 0.0                          # tire angle in degrees
         self.steering_radius = 0.0                   # radius of the circle the car is moving on
         self.steering_rotation_point = Vector2(0, 0) # point around which the car is rotating
-        self.rotation_position = -0.5                # 1.0 = front, -1.0 = back
+        self.rotation_position = -1                  # 1.0 = front, -1.0 = back
 
         self.magic_number = 0.014 # temporary fix for bug with velocity calculation
 
@@ -29,18 +30,24 @@ class CarModel:
         self.camera_position_smooth = Vector2(0, 0) # smoothed position of the camera in the world
 
         self.ppu = 64           # pixels per unit
-        self.draw_track = False # draw the track the car is moving on
+        self.draw_track_projection = False # draw the track the car is moving on
+
+        self._trace = [] # list of points that the car has passed
+        self.draw_track = True # draw the track the car has passed
+
+        self.trace_tires = [[],[]] # list of points that the tires have passed
 
     def update(self, dt):
         self._update_position(dt)
+        self._update_trace()
         self._update_inputs(dt)
         self._calculate_steering_rotation_point()
 
-
-    def update_parameters(self):
+    def load_parameters(self):
         self.length = cfg.get("car_length")
         self.width = cfg.get("car_width")
         self.max_steering = cfg.get("max_steering")
+        self.max_velocity = cfg.get("max_velocity")
         self.acceleration_speed = cfg.get("acceleration")
         self.steering_speed = cfg.get("steering_speed")
 
@@ -56,7 +63,6 @@ class CarModel:
             self.position = self._rotate_vector_about_point(self.position, 
                                                             self.steering_rotation_point, 
                                                             angular_velocity * dt)
-        
     def _update_inputs(self, dt):
         pressed = pg.key.get_pressed()
 
@@ -71,8 +77,7 @@ class CarModel:
         if pressed[pg.K_m]:
             self.magic_number += 0.001
         if pressed[pg.K_n]:
-            self.magic_number -= 0.001
-        
+            self.magic_number -= 0.001  
 
     def _calculate_steering_radius(self):
         if self.steering == 0:
@@ -109,6 +114,34 @@ class CarModel:
             else:
                 self.velocity_magnitude = min(0, self.velocity_magnitude + self.acceleration_speed * dt)
         
+    def _update_trace(self):
+        if not hasattr(self, 'temp_trace_counter'):
+            self.temp_trace_counter = 1
+        self.temp_trace_counter += 1
+
+        self._trace.append(self.position)
+
+        # Only update the trace from tires when moving fast enough
+        # and every x frames
+        frame_skip = 5
+        if abs(self.velocity_magnitude) < 0.5 or \
+            self.temp_trace_counter % frame_skip != 0:
+            return
+        
+        angle = -self.heading.angle_to(Vector2(1, 0))
+        tires = [
+            Vector2(-self.length / 2, self.width / 2),
+            Vector2(-self.length / 2, -self.width / 2)
+        ]
+        for i in range(len(tires)):
+            tires[i] = tires[i].rotate(angle)
+            tires[i] += self.position
+            self.trace_tires[i].append(tires[i])
+            
+            if len(self.trace_tires[i]) > 500:
+                for j in range(frame_skip):
+                    self.trace_tires[i].pop(0)
+    
     def _calculate_steering_rotation_point(self):
         angle = -self.heading.angle_to(Vector2(1, 0))
         self.steering_rotation_point = Vector2(0, self.steering_radius)
@@ -123,7 +156,8 @@ class CarModel:
         self._update_camera_position(screen)
 
         self._draw_grid(screen)
-        if self.draw_track: self._draw_steering_radius(screen, True)
+        self._draw_trace(screen)
+        if self.draw_track_projection: self._draw_steering_radius(screen, True)
         self._draw_tires(screen)
         self._draw_car(screen)
 
@@ -150,11 +184,10 @@ class CarModel:
             pg.draw.line(screen, (50, 50, 50), (0, y - self.camera_position_smooth.y * self.ppu), (canvas_width, y - self.camera_position_smooth.y * self.ppu))
 
 
-
     def _draw_steering_radius(self, screen, draw_wide_track=False):
         # Draw steering radius
-        color_track = (0, 10, 10)
-        color_line = (0, 60, 60)
+        color_track = (25, 25, 25)
+        color_line = (20, 40, 40)
         width = int(self.width * self.ppu)
         
         if self.steering_radius > 0:
@@ -186,11 +219,13 @@ class CarModel:
     def _draw_car(self, screen):
         # draw rectangle representing car
         angle = -self.heading.angle_to(Vector2(1, 0))
+
+        factor_overlap = 1.5 # determines how much the car goes over the tires from the front and back
         car_corner_points = [
-            Vector2(-self.length / 2, self.width / 2),
-            Vector2(self.length / 2, self.width / 2),
-            Vector2(self.length / 2, -self.width / 2),
-            Vector2(-self.length / 2, -self.width / 2)
+            Vector2(-self.length / factor_overlap, self.width / 2),
+            Vector2(self.length / factor_overlap, self.width / 2),
+            Vector2(self.length / factor_overlap, -self.width / 2),
+            Vector2(-self.length / factor_overlap, -self.width / 2)
         ]
 
         car_corner_points = [p.rotate(angle) for p in car_corner_points]
@@ -221,14 +256,15 @@ class CarModel:
         tire_corner_points = [p * self.ppu for p in tire_corner_points]
 
         tires = [
-            Vector2(self.length / 3, self.width / 2),
-            Vector2(self.length / 3, -self.width / 2),
+            Vector2(self.length / 2, self.width / 2),
+            Vector2(self.length / 2, -self.width / 2),
         ]
 
         tires = [p.rotate(angle) for p in tires]
         tires = [p + self.position for p in tires]
         tires = [p - self.camera_position_smooth for p in tires]
         tires = [p * self.ppu for p in tires]
+
 
         for tire in tires:
             points = [p + tire for p in tire_corner_points]
@@ -245,8 +281,8 @@ class CarModel:
         tire_corner_points = [p * self.ppu for p in tire_corner_points]
 
         tires = [
-            Vector2(-self.length / 3, self.width / 2),
-            Vector2(-self.length / 3, -self.width / 2)
+            Vector2(-self.length / 2, self.width / 2),
+            Vector2(-self.length / 2, -self.width / 2)
         ]
         tires = [p.rotate(angle) for p in tires]
         tires = [p + self.position for p in tires]
@@ -256,6 +292,14 @@ class CarModel:
         for tire in tires:
             points = [p + tire for p in tire_corner_points]
             pg.draw.polygon(screen, (255, 255, 255), points, 2)
+
+    def _draw_trace(self, screen):
+        for points in self.trace_tires:
+            if len(points) < 2:
+                continue
+            points = [p - self.camera_position_smooth for p in points]
+            points = [p * self.ppu for p in points]
+            pg.draw.lines(screen, (50,50,50), False, points, 5)
 
     def _rotate_vector_about_point(self, vector, point, angle):
         """Rotate a vector about a point by a given angle in degrees."""
