@@ -35,7 +35,7 @@ class ControllStreamServer:
 
     def start(self):
         self._thread.start()
-        print(f"Controll Stream: Listening as {self.host}:{self.port}")
+        print(f"Controll Stream: Listening at {self.host}:{self.port}")
 
 
     def close(self):

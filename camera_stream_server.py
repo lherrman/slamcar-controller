@@ -22,7 +22,7 @@ class CameraStreamServer:
 
     def start(self):
         self._thread.start()
-        print(f"Image Stream: Listening as {self.host}:{self.port}")
+        print(f"Image Stream: Listening at {self.host}:{self.port}")
 
     def receive_image(self):
         if not self.queue.empty():
