@@ -322,13 +322,6 @@ class ConfigWindow(UIContainer):
         line = UILine((0, line_y), (self.elements_width, line_y), color=(100,100,100))
         self.add_element(line)
 
-        # Add Reinit button
-        window_height = self.size[1]
-        reinit_btn_height = 40
-        self.reinit_button = UIButton((0, window_height-reinit_btn_height), 
-                                      (self.size[0], reinit_btn_height), 
-                                      "Reinitialize Worker", action=self.reinit_worker)
-        self.add_element(self.reinit_button)
 
     def handle_tab_change(self, tab_name):
         self.active_tab = tab_name
@@ -340,8 +333,6 @@ class ConfigWindow(UIContainer):
         super().update(event)
     
     
-
-
 if __name__ == "__main__":
     pg.init()
     screen = pg.display.set_mode((800, 600))
