@@ -140,8 +140,10 @@ class SlamcarController:
                                     self._toggle_configuration_window))
         # Display local IP address
         local_ip = self._get_local_ip()
-        self.ui_elements.append(UIText((10, self.canvas_height-20),
+        self.ui_elements.append(UIText((470, 10),
                                     f"{local_ip}", font_size=14))
+        # Open image folder button
+        self.ui_elements.append(UIButton((0,self.canvas_height-30), (130, 30), "Open Image Folder", self._open_pyslam_image_folder))
         
     def _toggle_camera_preview(self):
         self._show_camera_preview = not self._show_camera_preview
@@ -186,8 +188,7 @@ class SlamcarController:
             self._connected_worker_window = UIContainer((20, 50), (150, 160))
             self._connected_worker_window.add_element(UIText((40,20), "Worker 1", font_size=20))
             self._connected_worker_window.add_element(UIButton((10,50), (130, 30), "Show Camera", self._toggle_camera_preview))
-            self._connected_worker_window.add_element(UIButton((10,80), (130, 30), "Open Image Folder", self._open_pyslam_image_folder))
-            self._connected_worker_window.add_element(UIButton((10,110), (130, 30), "Reinitialize", self._config_window.reinit_worker()))
+            self._connected_worker_window.add_element(UIButton((10,80), (130, 30), "Reinitialize", self._config_window.reinit_worker()))
             self.ui_elements.append(self._connected_worker_window)
 
     def _draw_configuration(self):
@@ -212,18 +213,22 @@ class SlamcarController:
 
         if not hasattr(self, 'i_counter'):
             self.i_counter = 0
-
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         image = self.image_server.receive_image()
         if image is not None:
             self.connected = True
+            cv2.imshow(window_name, image)
             self._image_preview_last_image = image
       
             self.i_counter += 1
             if self.i_counter % 2 == 0:
                 self._send_image_to_slam(image)
                 
-        if self.connected and self._show_camera_preview:
+        if self.connected:
             cv2.imshow(window_name, self._image_preview_last_image)
+        # else:
+        #     if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) > 0:
+        #         cv2.destroyWindow(window_name)
 
 
     def _get_local_ip(self):
