@@ -17,17 +17,14 @@ class ControllStreamServer:
         self.socket = self.context.socket(zmq.REP)
         self.socket.bind(f"tcp://{self.host}:{self.port}")
         self._thread = threading.Thread(target=self._communication_loop, daemon=True)
-
         self.controlls = { # the controlls for the car
             'throttle': 10,
             'steering': 0
         }
-
-        self.state = { # the feedback from the car
+        self.state = { # the feedback from the car (dummy for now)
             'throttle': 0,
             'steering': 0,
         }
-
         self.config_queue = Queue() # the config queue
         
         self.controll_lock = threading.Lock()
@@ -36,7 +33,6 @@ class ControllStreamServer:
     def start(self):
         self._thread.start()
         print(f"Controll Stream: Listening at {self.host}:{self.port}")
-
 
     def close(self):
         print("Closing socket")
@@ -49,7 +45,6 @@ class ControllStreamServer:
 
             with self.state_lock:
                 self.state = message
-
 
             with self.controll_lock:
                 if not self.config_queue.empty():
@@ -65,7 +60,6 @@ class ControllStreamServer:
                         "config": False
                     }
                     self.socket.send_json(package)
-
 
     def send_config(self, config):
         self.config_queue.put(config)
