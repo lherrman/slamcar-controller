@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 
 class PySlamCon():
+    '''This class is used to communicate with the PySlam module'''
     def __init__(self, image_dir):
         self.image_dir = image_dir
         self.i = 0 # the image counter
