@@ -49,14 +49,15 @@ class UIContainer(UIElement):
 
     def draw(self, screen):
         # create a surface from the rect
-        self.image = pg.Surface(self.rect.size)
-        # fill the surface with the color
-        self.image.fill(self._bg_color)
-        # draw the surface on the screen
-        screen.blit(self.image, self.rect)
+        if hasattr(self, 'rect'):
+            self.image = pg.Surface(self.rect.size)
+            # fill the surface with the color
+            self.image.fill(self._bg_color)
+            # draw the surface on the screen
+            screen.blit(self.image, self.rect)
 
-        for element in self.elements:
-            element.draw(screen)
+            for element in self.elements:
+                element.draw(screen)
 
     def move_to(self, x, y):
         self._move(x - self.position[0], y - self.position[1])
