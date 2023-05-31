@@ -53,13 +53,6 @@ class SlamcarController:
 
         self._show_camera_preview = False
 
-        # Connected Worker Window
-        self._connected_worker_window = None
-        # self._connected_worker_window = UIContainer((0, 400), (150, 200))
-        # self._connected_worker_window.add_element(UIText((0,0), "Worker 1", font_size=14))
-        #     #worker_ip = self.controll_server.get_worker_ip()
-        #     #self._connected_worker_window.add_element(UIText((0,20), f"{worker_ip}", font_size=14))
-        # self.ui_elements.append(self._connected_worker_window)
         # PySlam Connection
         self.pyslam = PySlamCon(r'\\wsl.localhost\Ubuntu\home\user\slamcar\pyslam\videos\images')
 
@@ -74,7 +67,6 @@ class SlamcarController:
             self.screen.fill((30, 30, 30))
 
             # Draw connected worker window
-            self._draw_connected_worker_window()
 
             # Update
             self.car.update(dt)
@@ -98,7 +90,7 @@ class SlamcarController:
 
                 for element in self.ui_elements:
                     element.update(event)
-
+                #self._connected_worker_window.update(event)
                 self._config_window.update(event)
             
             # Draw
@@ -106,9 +98,13 @@ class SlamcarController:
             self._draw_gui(self.screen)           # draw gui
             for element in self.ui_elements:
                 element.draw(self.screen)
+
+            if self.connected:
+                ...#self._connected_worker_window.draw(self.screen)
             
             # Draw configuration window with slide in animation
             self._draw_configuration()
+            #self._draw_connected_worker_window()
 
             # Show image preview
             self._reviece_images()
@@ -182,14 +178,7 @@ class SlamcarController:
             text = self.font.render(f"waiting for connection " + 
                                "."*(self._gui_connection_text_helper+1), True, (255, 255, 255))
             screen.blit(text, position)
-
-    def _draw_connected_worker_window(self):    
-        if self._connected_worker_window is None and self.connected:   
-            self._connected_worker_window = UIContainer((20, 50), (150, 160))
-            self._connected_worker_window.add_element(UIText((40,20), "Worker 1", font_size=20))
-            self._connected_worker_window.add_element(UIButton((10,50), (130, 30), "Show Camera", self._toggle_camera_preview))
-            self._connected_worker_window.add_element(UIButton((10,80), (130, 30), "Reinitialize", self._config_window.reinit_worker()))
-            self.ui_elements.append(self._connected_worker_window)
+   
 
     def _draw_configuration(self):
         if self._show_config: 
@@ -213,7 +202,7 @@ class SlamcarController:
 
         if not hasattr(self, 'i_counter'):
             self.i_counter = 0
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
         image = self.image_server.receive_image()
         if image is not None:
             self.connected = True
