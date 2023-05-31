@@ -21,8 +21,9 @@ class SlamcarController:
         pg.display.set_caption("Slamcar Controller")
         self._print_boot_message()
         current_path = os.path.dirname(__file__)
-        icon = pg.image.load(current_path + '/resources/icon.png')
-        pg.display.set_icon(icon)
+        print(current_path)
+        # icon = pg.image.load(current_path + '/resources/icon.png')
+        # pg.display.set_icon(icon)
         self.canvas_width = 980
         self.canvas_height = 620
         self.screen = pg.display.set_mode((self.canvas_width, self.canvas_height))
@@ -269,6 +270,7 @@ class SlamcarController:
 
         return
     
+
 
 if __name__ == '__main__':
     slam_controller = SlamcarController()

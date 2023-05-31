@@ -5,3 +5,15 @@ services:
     ports:
       - "5001:5001"
       - "5002:5002"
+    environment:
+      - DISPLAY=127.0.0.1:0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ../slamcar-controller:/app
+    command: sh -c "while sleep 3600; do :; done"
