@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  stella_vslam-viewer:
+    image: heralar/stella_vslam-viewer
+    container_name: stella_vslam-viewer
+    ports:
+      - "3001:3001"
+      - "3000:3000"
+
+  stella_vslam_socket:
+    image: heralar/stella_vslam-socket
+    container_name: stella_vslam-socket
+    network_mode: "host"
+    volumes:
+      - ./stella_data:/stella_vslam/build/config_data
+    devices:
+      - /dev/video4:/dev/video0
+    tty: true
+  
+  
