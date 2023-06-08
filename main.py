@@ -213,7 +213,8 @@ class SlamcarController:
 
         if not hasattr(self, 'i_counter'):
             self.i_counter = 0
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+        #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         image = self.image_server.receive_image()
         if image is not None:
             self.connected = True
