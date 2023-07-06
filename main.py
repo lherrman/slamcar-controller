@@ -8,8 +8,10 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame as pg
 
 from camera_stream_server import CameraStreamServer
+#from camera_stream_receiver import CameraStreamReceiver # Experimental Stream using ffmpeg
 from controll_stream_server import ControllStreamServer
-from pyslam_con import PySlamCon
+from stella_vslam_connector import StellaConnector
+
 from base_model import CarModel
 from ui_elements import UIButton, UIText, ConfigWindow, UIContainer
 from config import Config as cfg
@@ -17,6 +19,7 @@ from config import Config as cfg
 
 class SlamcarController:
     def __init__(self):
+        # Window setup
         pg.init()
         pg.display.set_caption("Slamcar Controller")
         self._print_boot_message()
@@ -31,37 +34,40 @@ class SlamcarController:
         self.ticks = 60
         self.exit = False
 
-        self.ppu = 120 # pixels per unit 
-        self.time_last_pressed = 0
+        self.ppu = 120              # pixels per unit 
+        self.time_last_pressed = 0  # time last key was pressed
 
         self.connected = False # Worker connected
+
+        # Data stream servers
         self.image_server = CameraStreamServer(port=cfg.get('image_stream_port'))
         self.controll_server = ControllStreamServer(port=cfg.get('controll_port'))
-        # Controlls that get sent to Worker
+
+        # Stella VSLAM connector
+        self.stella_connector = None # gets initialized when worker connects
+
+        # Controlls package that get sent to Worker
         self.controlls = {
             'throttle': 0.0,
             'steering': 0.0
         }
+
         # UI elements
         self.ui_elements = []
         self._setup_ui()
+
         # Configuration window
         self.config_window_width = 250
         self._config_window_x_pos = self.canvas_width
         self._config_window = ConfigWindow((self._config_window_x_pos,30), (self.config_window_width,self.canvas_height-30))
         self._show_config = False
 
+        # camera image
         self._show_camera_preview = False
+        self._image_preview_last_image = np.zeros((480, 640, 3), np.uint8)
 
         # Connected Worker Window
         self._connected_worker_window = None
-        # self._connected_worker_window = UIContainer((0, 400), (150, 200))
-        # self._connected_worker_window.add_element(UIText((0,0), "Worker 1", font_size=14))
-        #     #worker_ip = self.controll_server.get_worker_ip()
-        #     #self._connected_worker_window.add_element(UIText((0,20), f"{worker_ip}", font_size=14))
-        # self.ui_elements.append(self._connected_worker_window)
-        # PySlam Connection
-        self.pyslam = PySlamCon(r'\\wsl.localhost\Ubuntu\home\user\slamcar\pyslam\videos\images')
 
     def run(self):
         initial_position = (3, 3)
@@ -121,12 +127,15 @@ class SlamcarController:
 
                 
         cv2.destroyAllWindows()
+        
         self.image_server.close()
         pg.quit()
 
 
     def _send_image_to_slam(self, image):
-        self.pyslam.put_image(image)
+        if not self.stella_connector:
+            self.stella_connector = StellaConnector(image.shape)
+        self.stella_connector.send_image(image)
 
     def _print_boot_message(self):
         f = Figlet(font='slant')
@@ -142,8 +151,7 @@ class SlamcarController:
         local_ip = self._get_local_ip()
         self.ui_elements.append(UIText((470, 10),
                                     f"{local_ip}", font_size=14))
-        # Open image folder button
-        self.ui_elements.append(UIButton((0,self.canvas_height-30), (130, 30), "Open Image Folder", self._open_pyslam_image_folder))
+
         
     def _toggle_camera_preview(self):
         self._show_camera_preview = not self._show_camera_preview
@@ -185,9 +193,9 @@ class SlamcarController:
 
     def _draw_connected_worker_window(self):    
         if self._connected_worker_window is None and self.connected:   
-            self._connected_worker_window = UIContainer((20, 50), (150, 160))
+            self._connected_worker_window = UIContainer((20, 50), (150, 120))
             self._connected_worker_window.add_element(UIText((40,20), "Worker 1", font_size=20))
-            self._connected_worker_window.add_element(UIButton((10,50), (130, 30), "Show Camera", self._toggle_camera_preview))
+            self._connected_worker_window.add_element(UIButton((10,50), (130, 30), "Toggle Preview", self._toggle_camera_preview))
             self._connected_worker_window.add_element(UIButton((10,80), (130, 30), "Reinitialize", self._config_window.reinit_worker()))
             self.ui_elements.append(self._connected_worker_window)
 
@@ -202,35 +210,32 @@ class SlamcarController:
         self._config_window.move_to(self._config_window_x_pos, 30)
         self._config_window.draw(self.screen)
 
-    def _open_pyslam_image_folder(self):
-        os.startfile(self.pyslam.image_dir)
-
     def _reviece_images(self):
         '''Show camera preview in a separate window'''
         window_name = 'SlamCar Camera'
-        if not hasattr(self, '_image_preview_last_image'):
-            self._image_preview_last_image = np.zeros((480, 640, 3), np.uint8)
 
         if not hasattr(self, 'i_counter'):
             self.i_counter = 0
 
-        #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         image = self.image_server.receive_image()
         if image is not None:
             self.connected = True
-            cv2.imshow(window_name, image)
             self._image_preview_last_image = image
       
             self.i_counter += 1
             if self.i_counter % 2 == 0:
                 self._send_image_to_slam(image)
                 
-        if self.connected:
+        # show image in a separate window if connected and preview is enabled
+        if self.connected and self._show_camera_preview:
             cv2.imshow(window_name, self._image_preview_last_image)
-        # else:
-        #     if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) > 0:
-        #         cv2.destroyWindow(window_name)
-
+            cv2.waitKey(1)
+        else:
+            # otherwise destroy the window
+            try:
+                cv2.destroyWindow(window_name)
+            except:
+                pass
 
     def _get_local_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
