@@ -153,6 +153,9 @@ class UIText(UIElement):
     def update_text(self, text):
         self._text = text
 
+    def update_text_color(self, color):
+        self._text_color = color
+
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
