@@ -15,7 +15,7 @@ from stella_vslam_connector import StellaConnector
 from base_model import CarModel
 from ui_elements import UIButton, UIText, ConfigWindow, UIContainer
 from config import Config as cfg
-
+import webbrowser
 
 class SlamcarController:
     def __init__(self):
@@ -66,6 +66,12 @@ class SlamcarController:
         self._show_camera_preview = False
         self._image_preview_last_image = np.zeros((480, 640, 3), np.uint8)
 
+        # Stella UI
+        self.stella_connector = StellaConnector()
+        self.stella_connector.start_stella_containers()
+        self.stella_status_text = UIText((10, 600), 'Stella VSLAM starting ...')
+        self.stella_virtual_device_initialized = False
+
         # Connected Worker Window
         self._connected_worker_window = None
 
@@ -104,6 +110,7 @@ class SlamcarController:
 
                 for element in self.ui_elements:
                     element.update(event)
+                self.stella_status_text.update(event)
 
                 self._config_window.update(event)
             
@@ -112,6 +119,7 @@ class SlamcarController:
             self._draw_gui(self.screen)           # draw gui
             for element in self.ui_elements:
                 element.draw(self.screen)
+            self.stella_status_text.draw(self.screen)
             
             # Draw configuration window with slide in animation
             self._draw_configuration()
@@ -133,8 +141,7 @@ class SlamcarController:
 
 
     def _send_image_to_slam(self, image):
-        if not self.stella_connector:
-            self.stella_connector = StellaConnector(image.shape)
+        print(f'Sending image to Stella VSLAM: shape {image.shape}')
         self.stella_connector.send_image(image)
 
     def _print_boot_message(self):
@@ -152,12 +159,17 @@ class SlamcarController:
         self.ui_elements.append(UIText((470, 10),
                                     f"{local_ip}", font_size=14))
 
-        
+    
     def _toggle_camera_preview(self):
         self._show_camera_preview = not self._show_camera_preview
 
     def _toggle_configuration_window(self):
         self._show_config = not self._show_config
+
+    def _initialize_virtual_video_device_if_not_initialized(self):
+        if self.connected and not self.stella_virtual_device_initialized:
+            self.stella_connector.initialize_virtual_device(self._image_preview_last_image.shape)
+            self.stella_virtual_device_initialized = True
 
     def _draw_gui(self, screen):
         self._draw_hbar(screen, pos='top', height=30, color=(37, 37, 37))
@@ -191,13 +203,20 @@ class SlamcarController:
                                "."*(self._gui_connection_text_helper+1), True, (255, 255, 255))
             screen.blit(text, position)
 
+        if self.stella_connector.check_stella_containers():
+            self.stella_status_text.update_text('Stella VSLAM running')
+            self.stella_status_text.update_text_color((0, 255, 0))
+    
     def _draw_connected_worker_window(self):    
         if self._connected_worker_window is None and self.connected:   
-            self._connected_worker_window = UIContainer((20, 50), (150, 120))
+            self._connected_worker_window = UIContainer((20, 50), (150, 200))
             self._connected_worker_window.add_element(UIText((40,20), "Worker 1", font_size=20))
             self._connected_worker_window.add_element(UIButton((10,50), (130, 30), "Toggle Preview", self._toggle_camera_preview))
-            self._connected_worker_window.add_element(UIButton((10,80), (130, 30), "Reinitialize", self._config_window.reinit_worker()))
+            self._connected_worker_window.add_element(UIButton((10,80), (130, 30), "Reinitialize", self._config_window.reinit_worker))
+            self._connected_worker_window.add_element(UIButton((10,110), (130, 30), "Open Viewer", self.stella_connector.open_stella_viewer))
+            self._connected_worker_window.add_element(UIButton((10,140), (130, 30), "Start VSLAM", self.stella_connector.start_camera_vslam))
             self.ui_elements.append(self._connected_worker_window)
+
 
     def _draw_configuration(self):
         if self._show_config: 
@@ -214,6 +233,8 @@ class SlamcarController:
         '''Show camera preview in a separate window'''
         window_name = 'SlamCar Camera'
 
+        self._initialize_virtual_video_device_if_not_initialized()
+
         if not hasattr(self, 'i_counter'):
             self.i_counter = 0
 
@@ -223,7 +244,7 @@ class SlamcarController:
             self._image_preview_last_image = image
       
             self.i_counter += 1
-            if self.i_counter % 2 == 0:
+            if self.i_counter % 1 == 0 and self.stella_virtual_device_initialized:
                 self._send_image_to_slam(image)
                 
         # show image in a separate window if connected and preview is enabled
